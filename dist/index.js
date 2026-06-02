@@ -1234,6 +1234,18 @@ function numberValue2(value) {
 function booleanValue(value) {
   return typeof value === "boolean" ? value : void 0;
 }
+function parseCliBoolean(value) {
+  const normalized = value.trim().toLowerCase();
+  if (["true", "1", "yes", "y", "on", "enable", "enabled"].includes(normalized)) return true;
+  if (["false", "0", "no", "n", "off", "disable", "disabled"].includes(normalized)) return false;
+  throw new Error(`Expected a boolean value, got "${value}"`);
+}
+function cliBooleanValue(value, defaultWhenPresent) {
+  if (value === void 0) return defaultWhenPresent;
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") return parseCliBoolean(value);
+  throw new Error(`Expected a boolean value, got ${String(value)}`);
+}
 function optionWasSet(command, name) {
   return command?.getOptionValueSource?.(name) === "cli";
 }
@@ -1276,7 +1288,7 @@ function registerCliCommands(api, config, store, deps = {}) {
   if (typeof api.registerCli !== "function") return;
   api.registerCli(({ program }) => {
     const root = program.command("memory-elasticsearch").alias("memory-es").description("Elasticsearch memory plugin commands");
-    root.command("init").description("Configure memory-elasticsearch without editing openclaw.json by hand").option("--user-id <id>", "Memory user namespace").option("--base-url <url>", "OpenAI-compatible base URL", DEFAULT_BASE_URL).option("--api-key <key>", "Shared OpenAI-compatible API key; stored in ~/.openclaw/.env").option("--llm-base-url <url>", "LLM OpenAI-compatible base URL; defaults to --base-url").option("--llm-api-key <key>", "LLM API key; defaults to --api-key").option("--llm-model <model>", "LLM model", DEFAULT_LLM_MODEL2).option("--embedding-base-url <url>", "Embedding OpenAI-compatible base URL; defaults to --base-url").option("--embedding-api-key <key>", "Embedding API key; defaults to --api-key").option("--embedding-model <model>", "Embedding model", DEFAULT_EMBEDDING_MODEL2).option("--embedding-dims <n>", "Embedding vector dimensions", String(DEFAULT_EMBEDDING_DIMS2)).option("--reranker", "Enable Jina reranker").option("--reranker-base-url <url>", "Jina reranker base URL", DEFAULT_RERANKER_BASE_URL2).option("--reranker-api-key <key>", "Jina API key; stored in ~/.openclaw/.env").option("--reranker-model <model>", "Reranker model", DEFAULT_RERANKER_MODEL2).option("--elasticsearch-url <url>", "Elasticsearch URL", DEFAULT_ELASTICSEARCH_URL).option("--index <index>", "Elasticsearch index", DEFAULT_INDEX2).option("--elasticsearch-api-key <key>", "Elasticsearch API key").option("--elasticsearch-user <user>", "Elasticsearch basic auth username").option("--elasticsearch-password <password>", "Elasticsearch basic auth password").option("--auto-recall", "Enable automatic memory recall").option("--auto-capture", "Enable automatic memory capture").option("--top-k <n>", "Recall result count", "5").option("--search-threshold <n>", "Recall score threshold", "0.05").option("--reuse-values", "Reuse current memory-elasticsearch config for unspecified options").option("--json", "Machine-readable output").action((opts, command) => {
+    root.command("init").description("Configure memory-elasticsearch without editing openclaw.json by hand").option("--user-id <id>", "Memory user namespace").option("--base-url <url>", "OpenAI-compatible base URL", DEFAULT_BASE_URL).option("--api-key <key>", "Shared OpenAI-compatible API key; stored in ~/.openclaw/.env").option("--llm-base-url <url>", "LLM OpenAI-compatible base URL; defaults to --base-url").option("--llm-api-key <key>", "LLM API key; defaults to --api-key").option("--llm-model <model>", "LLM model", DEFAULT_LLM_MODEL2).option("--embedding-base-url <url>", "Embedding OpenAI-compatible base URL; defaults to --base-url").option("--embedding-api-key <key>", "Embedding API key; defaults to --api-key").option("--embedding-model <model>", "Embedding model", DEFAULT_EMBEDDING_MODEL2).option("--embedding-dims <n>", "Embedding vector dimensions", String(DEFAULT_EMBEDDING_DIMS2)).option("--reranker [enabled]", "Enable or disable Jina reranker", parseCliBoolean).option("--reranker-base-url <url>", "Jina reranker base URL", DEFAULT_RERANKER_BASE_URL2).option("--reranker-api-key <key>", "Jina API key; stored in ~/.openclaw/.env").option("--reranker-model <model>", "Reranker model", DEFAULT_RERANKER_MODEL2).option("--elasticsearch-url <url>", "Elasticsearch URL", DEFAULT_ELASTICSEARCH_URL).option("--index <index>", "Elasticsearch index", DEFAULT_INDEX2).option("--elasticsearch-api-key <key>", "Elasticsearch API key").option("--elasticsearch-user <user>", "Elasticsearch basic auth username").option("--elasticsearch-password <password>", "Elasticsearch basic auth password").option("--auto-recall [enabled]", "Enable or disable automatic memory recall", parseCliBoolean).option("--auto-capture [enabled]", "Enable or disable automatic memory capture", parseCliBoolean).option("--top-k <n>", "Recall result count", "5").option("--search-threshold <n>", "Recall score threshold", "0.05").option("--reuse-values", "Reuse current memory-elasticsearch config for unspecified options").option("--json", "Machine-readable output").action((opts, command) => {
       try {
         const existingConfig = opts.reuseValues ? readOpenClawPluginConfig() ?? {} : {};
         const existingElasticsearch = objectValue2(existingConfig.elasticsearch);
@@ -1309,7 +1321,7 @@ function registerCliCommands(api, config, store, deps = {}) {
         if (opts.llmApiKey) upsertEnvVar(llmApiKeyEnv, opts.llmApiKey);
         if (opts.embeddingApiKey) upsertEnvVar(embeddingApiKeyEnv, opts.embeddingApiKey);
         if (opts.rerankerApiKey) upsertEnvVar(rerankerApiKeyEnv, opts.rerankerApiKey);
-        const rerankerEnabled = optionWasSet(command, "reranker") ? true : opts.reuseValues ? booleanValue(existingReranker.enabled) ?? false : false;
+        const rerankerEnabled = optionWasSet(command, "reranker") ? cliBooleanValue(opts.reranker, true) : opts.reuseValues ? booleanValue(existingReranker.enabled) ?? false : false;
         const rerankerBaseUrl = reusableOption(opts, command, "rerankerBaseUrl", stringValue(existingReranker.baseUrl), DEFAULT_RERANKER_BASE_URL2);
         const resolvedRerankerApiKeyRef = opts.rerankerApiKey ? rerankerApiKeyRef : rerankerEnabled ? opts.reuseValues ? stringValue(existingReranker.apiKey) ?? rerankerApiKeyRef : rerankerApiKeyRef : void 0;
         const rerankerModel = reusableOption(opts, command, "rerankerModel", stringValue(existingReranker.model), DEFAULT_RERANKER_MODEL2);
@@ -1318,8 +1330,8 @@ function registerCliCommands(api, config, store, deps = {}) {
         const elasticsearchApiKey = reusableOption(opts, command, "elasticsearchApiKey", stringValue(existingElasticsearch.apiKey), void 0);
         const elasticsearchUsername = reusableOption(opts, command, "elasticsearchUser", stringValue(existingElasticsearch.username), void 0);
         const elasticsearchPassword = reusableOption(opts, command, "elasticsearchPassword", stringValue(existingElasticsearch.password), void 0);
-        const autoRecall = optionWasSet(command, "autoRecall") ? opts.autoRecall ?? true : opts.reuseValues ? booleanValue(existingConfig.autoRecall) ?? true : true;
-        const autoCapture = optionWasSet(command, "autoCapture") ? opts.autoCapture ?? true : opts.reuseValues ? booleanValue(existingConfig.autoCapture) ?? true : true;
+        const autoRecall = optionWasSet(command, "autoRecall") ? cliBooleanValue(opts.autoRecall, true) : opts.reuseValues ? booleanValue(existingConfig.autoRecall) ?? true : true;
+        const autoCapture = optionWasSet(command, "autoCapture") ? cliBooleanValue(opts.autoCapture, true) : opts.reuseValues ? booleanValue(existingConfig.autoCapture) ?? true : true;
         const topK = optionWasSet(command, "topK") ? numberOption(opts.topK, 5) : opts.reuseValues ? numberValue2(existingConfig.topK) ?? 5 : numberOption(opts.topK, 5);
         const searchThreshold = optionWasSet(command, "searchThreshold") ? numberOption(opts.searchThreshold, 0.05) : opts.reuseValues ? numberValue2(existingConfig.searchThreshold) ?? 0.05 : numberOption(opts.searchThreshold, 0.05);
         patchOpenClawConfig({

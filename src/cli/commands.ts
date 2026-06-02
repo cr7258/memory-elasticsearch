@@ -121,6 +121,20 @@ function booleanValue(value: unknown): boolean | undefined {
   return typeof value === "boolean" ? value : undefined;
 }
 
+function parseCliBoolean(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  if (["true", "1", "yes", "y", "on", "enable", "enabled"].includes(normalized)) return true;
+  if (["false", "0", "no", "n", "off", "disable", "disabled"].includes(normalized)) return false;
+  throw new Error(`Expected a boolean value, got "${value}"`);
+}
+
+function cliBooleanValue(value: unknown, defaultWhenPresent: boolean): boolean {
+  if (value === undefined) return defaultWhenPresent;
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") return parseCliBoolean(value);
+  throw new Error(`Expected a boolean value, got ${String(value)}`);
+}
+
 function optionWasSet(command: any, name: keyof InitOptions): boolean {
   return command?.getOptionValueSource?.(name) === "cli";
 }
@@ -187,7 +201,7 @@ export function registerCliCommands(api: any, config: MemoryConfig, store?: Memo
       .option("--embedding-api-key <key>", "Embedding API key; defaults to --api-key")
       .option("--embedding-model <model>", "Embedding model", DEFAULT_EMBEDDING_MODEL)
       .option("--embedding-dims <n>", "Embedding vector dimensions", String(DEFAULT_EMBEDDING_DIMS))
-      .option("--reranker", "Enable Jina reranker")
+      .option("--reranker [enabled]", "Enable or disable Jina reranker", parseCliBoolean)
       .option("--reranker-base-url <url>", "Jina reranker base URL", DEFAULT_RERANKER_BASE_URL)
       .option("--reranker-api-key <key>", "Jina API key; stored in ~/.openclaw/.env")
       .option("--reranker-model <model>", "Reranker model", DEFAULT_RERANKER_MODEL)
@@ -196,8 +210,8 @@ export function registerCliCommands(api: any, config: MemoryConfig, store?: Memo
       .option("--elasticsearch-api-key <key>", "Elasticsearch API key")
       .option("--elasticsearch-user <user>", "Elasticsearch basic auth username")
       .option("--elasticsearch-password <password>", "Elasticsearch basic auth password")
-      .option("--auto-recall", "Enable automatic memory recall")
-      .option("--auto-capture", "Enable automatic memory capture")
+      .option("--auto-recall [enabled]", "Enable or disable automatic memory recall", parseCliBoolean)
+      .option("--auto-capture [enabled]", "Enable or disable automatic memory capture", parseCliBoolean)
       .option("--top-k <n>", "Recall result count", "5")
       .option("--search-threshold <n>", "Recall score threshold", "0.05")
       .option("--reuse-values", "Reuse current memory-elasticsearch config for unspecified options")
@@ -265,7 +279,7 @@ export function registerCliCommands(api: any, config: MemoryConfig, store?: Memo
           if (opts.embeddingApiKey) upsertEnvVar(embeddingApiKeyEnv, opts.embeddingApiKey);
           if (opts.rerankerApiKey) upsertEnvVar(rerankerApiKeyEnv, opts.rerankerApiKey);
           const rerankerEnabled = optionWasSet(command, "reranker")
-            ? true
+            ? cliBooleanValue(opts.reranker, true)
             : opts.reuseValues
               ? booleanValue(existingReranker.enabled) ?? false
               : false;
@@ -284,12 +298,12 @@ export function registerCliCommands(api: any, config: MemoryConfig, store?: Memo
           const elasticsearchUsername = reusableOption(opts, command, "elasticsearchUser", stringValue(existingElasticsearch.username), undefined);
           const elasticsearchPassword = reusableOption(opts, command, "elasticsearchPassword", stringValue(existingElasticsearch.password), undefined);
           const autoRecall = optionWasSet(command, "autoRecall")
-            ? opts.autoRecall ?? true
+            ? cliBooleanValue(opts.autoRecall, true)
             : opts.reuseValues
               ? booleanValue(existingConfig.autoRecall) ?? true
               : true;
           const autoCapture = optionWasSet(command, "autoCapture")
-            ? opts.autoCapture ?? true
+            ? cliBooleanValue(opts.autoCapture, true)
             : opts.reuseValues
               ? booleanValue(existingConfig.autoCapture) ?? true
               : true;

@@ -112,6 +112,12 @@ openclaw memory-es init \
   --reranker-model jina-reranker-v3
 ```
 
+Disable Jina reranking while keeping the rest of the current config:
+
+```bash
+openclaw memory-es init --reuse-values --reranker false
+```
+
 After initialization, restart the gateway so the plugin is loaded with the new config:
 
 ```bash
