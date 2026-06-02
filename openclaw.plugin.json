@@ -2,7 +2,7 @@
   "id": "memory-elasticsearch",
   "name": "Memory (Elasticsearch)",
   "description": "OpenClaw long-term memory backend backed by Elasticsearch. Supports memory tools, triage, auto recall/capture, and app-level BM25 + vector hybrid retrieval.",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "kind": "memory",
   "skills": [
     "skills"
