@@ -1,6 +1,5 @@
 export interface SearchConfig {
   mode: "hybrid";
-  numCandidates: number;
   semanticWeight: number;
   keywordWeight: number;
 }
@@ -37,11 +36,6 @@ export interface MemoryConfig {
     password?: string;
   };
   openaiCompatible: {
-    baseUrl: string;
-    apiKey?: string;
-    llmModel: string;
-    embeddingModel: string;
-    embeddingDims: number;
     llm: OpenAICompatibleEndpointConfig;
     embedding: OpenAICompatibleEmbeddingConfig;
   };

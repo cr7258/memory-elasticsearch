@@ -11,11 +11,17 @@ describe("ElasticsearchMemoryStore.search", () => {
     const config = parseConfig({
       topK: 2,
       openaiCompatible: {
-        baseUrl: "https://api.example/v1",
-        apiKey: "test-key",
-        llmModel: "test-llm",
-        embeddingModel: "test-embedding",
-        embeddingDims: 3,
+        llm: {
+          baseUrl: "https://api.example/v1",
+          apiKey: "test-key",
+          model: "test-llm",
+        },
+        embedding: {
+          baseUrl: "https://api.example/v1",
+          apiKey: "test-key",
+          model: "test-embedding",
+          dims: 3,
+        },
       },
       reranker: {
         enabled: true,
@@ -36,6 +42,7 @@ describe("ElasticsearchMemoryStore.search", () => {
       const body = options.body as any;
       if (body?.knn) {
         expect(body.knn.k).toBe(2);
+        expect(body.knn).not.toHaveProperty("num_candidates");
         expect(body.size).toBe(2);
         return {
           hits: {
@@ -78,11 +85,17 @@ describe("ElasticsearchMemoryStore.search", () => {
     const config = parseConfig({
       topK: 2,
       openaiCompatible: {
-        baseUrl: "https://api.example/v1",
-        apiKey: "test-key",
-        llmModel: "test-llm",
-        embeddingModel: "test-embedding",
-        embeddingDims: 3,
+        llm: {
+          baseUrl: "https://api.example/v1",
+          apiKey: "test-key",
+          model: "test-llm",
+        },
+        embedding: {
+          baseUrl: "https://api.example/v1",
+          apiKey: "test-key",
+          model: "test-embedding",
+          dims: 3,
+        },
       },
     }, { env: {}, username: "test-user" });
     const model = {

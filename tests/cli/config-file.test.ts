@@ -13,8 +13,6 @@ function initInput(overrides: Partial<InitConfigInput> = {}): InitConfigInput {
     searchThreshold: 0.05,
     elasticsearchUrl: "http://localhost:9200",
     elasticsearchIndex: "openclaw-memory",
-    openaiCompatibleBaseUrl: "https://openrouter.ai/api/v1",
-    openaiCompatibleApiKeyRef: "${OPENAI_API_KEY}",
     llmBaseUrl: "https://llm.example/v1",
     llmApiKeyRef: "${OPENAI_LLM_API_KEY}",
     llmModel: "qwen/qwen3.6-plus",
@@ -32,8 +30,6 @@ function initInput(overrides: Partial<InitConfigInput> = {}): InitConfigInput {
 describe("buildPluginConfig", () => {
   it("writes separate llm and embedding endpoint blocks", () => {
     const pluginConfig = buildPluginConfig(initInput({
-      openaiCompatibleBaseUrl: "https://shared.example/v1",
-      openaiCompatibleApiKeyRef: "${OPENAI_API_KEY}",
       llmBaseUrl: "https://llm.example/v1",
       llmApiKeyRef: "${OPENAI_LLM_API_KEY}",
       llmModel: "llm-model",
@@ -48,8 +44,6 @@ describe("buildPluginConfig", () => {
     }));
 
     expect(pluginConfig.openaiCompatible).toMatchObject({
-      baseUrl: "https://shared.example/v1",
-      apiKey: "${OPENAI_API_KEY}",
       llm: {
         baseUrl: "https://llm.example/v1",
         apiKey: "${OPENAI_LLM_API_KEY}",
@@ -62,6 +56,11 @@ describe("buildPluginConfig", () => {
         dims: 4096,
       },
     });
+    expect(pluginConfig.openaiCompatible).not.toHaveProperty("baseUrl");
+    expect(pluginConfig.openaiCompatible).not.toHaveProperty("apiKey");
+    expect(pluginConfig.openaiCompatible).not.toHaveProperty("llmModel");
+    expect(pluginConfig.openaiCompatible).not.toHaveProperty("embeddingModel");
+    expect(pluginConfig.openaiCompatible).not.toHaveProperty("embeddingDims");
     expect(pluginConfig.reranker).toMatchObject({
       enabled: true,
       provider: "jina",
@@ -87,9 +86,10 @@ describe("readOpenClawPluginConfig", () => {
       const pluginConfig = readOpenClawPluginConfig(path);
 
       expect(pluginConfig?.elasticsearch.index).toBe("openclaw-memory-existing");
-      expect(pluginConfig?.openaiCompatible.apiKey).toBe("${OPENAI_API_KEY}");
       expect(pluginConfig?.openaiCompatible.llm.model).toBe("qwen/qwen3.6-plus");
       expect(pluginConfig?.openaiCompatible.embedding.dims).toBe(4096);
+      expect(pluginConfig?.openaiCompatible).not.toHaveProperty("apiKey");
+      expect(pluginConfig?.openaiCompatible).not.toHaveProperty("embeddingDims");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

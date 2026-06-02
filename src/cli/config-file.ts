@@ -27,8 +27,6 @@ export interface InitConfigInput {
   elasticsearchApiKey?: string;
   elasticsearchUsername?: string;
   elasticsearchPassword?: string;
-  openaiCompatibleBaseUrl: string;
-  openaiCompatibleApiKeyRef: string;
   llmBaseUrl: string;
   llmApiKeyRef: string;
   llmModel: string;
@@ -85,16 +83,10 @@ export function buildPluginConfig(input: InitConfigInput): Record<string, any> {
     },
     search: {
       mode: "hybrid",
-      numCandidates: 100,
       semanticWeight: 0.6,
       keywordWeight: 0.4,
     },
     openaiCompatible: {
-      baseUrl: input.openaiCompatibleBaseUrl,
-      apiKey: input.openaiCompatibleApiKeyRef,
-      llmModel: input.llmModel,
-      embeddingModel: input.embeddingModel,
-      embeddingDims: input.embeddingDims,
       llm: {
         baseUrl: input.llmBaseUrl,
         apiKey: input.llmApiKeyRef,

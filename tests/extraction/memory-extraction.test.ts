@@ -11,9 +11,11 @@ function clientWithoutApiKey(): OpenAICompatibleClient {
 function clientWithApiKey(): OpenAICompatibleClient {
   const config = parseConfig({
     openaiCompatible: {
-      baseUrl: "https://api.example/v1",
-      apiKey: "test-key",
-      llmModel: "test-llm",
+      llm: {
+        baseUrl: "https://api.example/v1",
+        apiKey: "test-key",
+        model: "test-llm",
+      },
     },
   }, { env: {}, username: "test-user" });
   return new OpenAICompatibleClient(config.openaiCompatible);

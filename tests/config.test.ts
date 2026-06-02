@@ -5,7 +5,10 @@ describe("parseConfig", () => {
   it("fills practical defaults", () => {
     const cfg = parseConfig({
       elasticsearch: { url: "http://es:9200" },
-      openaiCompatible: { apiKey: "test-key" },
+      openaiCompatible: {
+        llm: { apiKey: "test-key" },
+        embedding: { apiKey: "test-key" },
+      },
     }, {
       env: {},
       username: "alice",
@@ -18,14 +21,20 @@ describe("parseConfig", () => {
     expect(cfg.search.mode).toBe("hybrid");
     expect(cfg.search.semanticWeight).toBe(0.6);
     expect(cfg.search.keywordWeight).toBe(0.4);
-    expect(cfg.search.numCandidates).toBe(100);
+    expect(cfg.search).not.toHaveProperty("numCandidates");
     expect(cfg.reranker.enabled).toBe(false);
     expect(cfg.reranker.model).toBe("jina-reranker-v3");
-    expect(cfg.openaiCompatible.baseUrl).toBe("https://api.openai.com/v1");
-    expect(cfg.openaiCompatible.apiKey).toBe("test-key");
-    expect(cfg.openaiCompatible.llmModel).toBe("gpt-4o-mini");
-    expect(cfg.openaiCompatible.embeddingModel).toBe("text-embedding-3-small");
-    expect(cfg.openaiCompatible.embeddingDims).toBe(1536);
+    expect(cfg.openaiCompatible.llm).toEqual({
+      baseUrl: "https://api.openai.com/v1",
+      apiKey: "test-key",
+      model: "gpt-4o-mini",
+    });
+    expect(cfg.openaiCompatible.embedding).toEqual({
+      baseUrl: "https://api.openai.com/v1",
+      apiKey: "test-key",
+      model: "text-embedding-3-small",
+      dims: 1536,
+    });
   });
 
   it("can read environment defaults without leaking secret shape", () => {
@@ -39,27 +48,37 @@ describe("parseConfig", () => {
     });
 
     expect(cfg.elasticsearch.url).toBe("http://localhost:9200");
-    expect(cfg.openaiCompatible.apiKey).toBe("sk-test-secret");
-    expect(cfg.openaiCompatible.baseUrl).toBe("https://proxy.example/v1");
+    expect(cfg.openaiCompatible.llm.apiKey).toBe("sk-test-secret");
+    expect(cfg.openaiCompatible.llm.baseUrl).toBe("https://proxy.example/v1");
+    expect(cfg.openaiCompatible.embedding.apiKey).toBe("sk-test-secret");
+    expect(cfg.openaiCompatible.embedding.baseUrl).toBe("https://proxy.example/v1");
     expect(cfg.userId).toBe("default-user");
   });
 
-  it("resolves env placeholders for OpenAI-compatible API keys", () => {
+  it("resolves endpoint API key placeholders", () => {
     const resolved = parseConfig({
-      openaiCompatible: { apiKey: "${MODEL_API_KEY}" },
+      openaiCompatible: {
+        llm: { apiKey: "${MODEL_API_KEY}" },
+        embedding: { apiKey: "${MODEL_API_KEY}" },
+      },
     }, {
       env: { MODEL_API_KEY: "resolved-key" },
       username: "default-user",
     });
     const missing = parseConfig({
-      openaiCompatible: { apiKey: "${MODEL_API_KEY}" },
+      openaiCompatible: {
+        llm: { apiKey: "${MODEL_API_KEY}" },
+        embedding: { apiKey: "${MODEL_API_KEY}" },
+      },
     }, {
       env: {},
       username: "default-user",
     });
 
-    expect(resolved.openaiCompatible.apiKey).toBe("resolved-key");
-    expect(missing.openaiCompatible.apiKey).toBeUndefined();
+    expect(resolved.openaiCompatible.llm.apiKey).toBe("resolved-key");
+    expect(resolved.openaiCompatible.embedding.apiKey).toBe("resolved-key");
+    expect(missing.openaiCompatible.llm.apiKey).toBeUndefined();
+    expect(missing.openaiCompatible.embedding.apiKey).toBeUndefined();
   });
 
   it("resolves Jina reranker config and API key placeholders", () => {
@@ -101,8 +120,6 @@ describe("parseConfig", () => {
   it("lets llm and embedding endpoints override shared OpenAI-compatible defaults", () => {
     const cfg = parseConfig({
       openaiCompatible: {
-        baseUrl: "https://shared.example/v1",
-        apiKey: "${SHARED_API_KEY}",
         llm: {
           baseUrl: "https://llm.example/v1",
           apiKey: "${LLM_API_KEY}",
@@ -117,18 +134,12 @@ describe("parseConfig", () => {
       },
     }, {
       env: {
-        SHARED_API_KEY: "shared-key",
         LLM_API_KEY: "llm-key",
         EMBEDDING_API_KEY: "embedding-key",
       },
       username: "default-user",
     });
 
-    expect(cfg.openaiCompatible.baseUrl).toBe("https://shared.example/v1");
-    expect(cfg.openaiCompatible.apiKey).toBe("shared-key");
-    expect(cfg.openaiCompatible.llm.model).toBe("llm-model");
-    expect(cfg.openaiCompatible.embeddingModel).toBe("embedding-model");
-    expect(cfg.openaiCompatible.embeddingDims).toBe(4096);
     expect(cfg.openaiCompatible.llm).toEqual({
       baseUrl: "https://llm.example/v1",
       apiKey: "llm-key",
@@ -139,6 +150,33 @@ describe("parseConfig", () => {
       apiKey: "embedding-key",
       model: "embedding-model",
       dims: 4096,
+    });
+  });
+
+  it("ignores removed outer OpenAI-compatible compatibility fields", () => {
+    const cfg = parseConfig({
+      openaiCompatible: {
+        baseUrl: "https://outer.example/v1",
+        apiKey: "outer-key",
+        llmModel: "outer-llm",
+        embeddingModel: "outer-embedding",
+        embeddingDims: 777,
+      },
+    }, {
+      env: {},
+      username: "default-user",
+    });
+
+    expect(cfg.openaiCompatible.llm).toEqual({
+      baseUrl: "https://api.openai.com/v1",
+      apiKey: undefined,
+      model: "gpt-4o-mini",
+    });
+    expect(cfg.openaiCompatible.embedding).toEqual({
+      baseUrl: "https://api.openai.com/v1",
+      apiKey: undefined,
+      model: "text-embedding-3-small",
+      dims: 1536,
     });
   });
 });

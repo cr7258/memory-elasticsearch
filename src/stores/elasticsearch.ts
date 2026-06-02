@@ -123,7 +123,7 @@ export class ElasticsearchMemoryStore {
             text_lemmatized: { type: "text" },
             vector: {
               type: "dense_vector",
-              dims: this.config.openaiCompatible.embeddingDims,
+              dims: this.config.openaiCompatible.embedding.dims,
               index: true,
               similarity: "cosine",
             },
@@ -249,7 +249,7 @@ export class ElasticsearchMemoryStore {
 
     const semanticPromise = this.request(`/${encodeURIComponent(this.index)}/_search`, {
       method: "POST",
-      body: buildKnnSearchBody({ vector, topK, filters, numCandidates: this.config.search.numCandidates }),
+      body: buildKnnSearchBody({ vector, topK, filters }),
     });
 
     const [semanticResponse, keywordResponse] = await Promise.all([

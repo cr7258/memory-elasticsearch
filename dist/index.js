@@ -51,22 +51,20 @@ function parseConfig(value = {}, opts = {}) {
   const embedding = objectValue(openaiCompatible.embedding);
   const search = objectValue(cfg.search);
   const reranker = objectValue(cfg.reranker);
-  const openaiBaseUrl = openaiCompatible.baseUrl ?? env.OPENAI_BASE_URL ?? DEFAULT_OPENAI_BASE_URL;
-  const openaiApiKey = envTemplateValue(openaiCompatible.apiKey, env) ?? env.OPENAI_API_KEY;
-  const llmModel = llm.model ?? openaiCompatible.llmModel ?? env.OPENAI_LLM_MODEL ?? DEFAULT_LLM_MODEL;
-  const embeddingModel = embedding.model ?? openaiCompatible.embeddingModel ?? env.OPENAI_EMBEDDING_MODEL ?? DEFAULT_EMBEDDING_MODEL;
+  const llmModel = llm.model ?? env.OPENAI_LLM_MODEL ?? DEFAULT_LLM_MODEL;
+  const embeddingModel = embedding.model ?? env.OPENAI_EMBEDDING_MODEL ?? DEFAULT_EMBEDDING_MODEL;
   const embeddingDims = numberValue(
-    embedding.dims ?? openaiCompatible.embeddingDims ?? env.OPENAI_EMBEDDING_DIMS,
+    embedding.dims ?? env.OPENAI_EMBEDDING_DIMS,
     DEFAULT_EMBEDDING_DIMS
   );
   const llmConfig = {
-    baseUrl: llm.baseUrl ?? env.OPENAI_LLM_BASE_URL ?? openaiBaseUrl,
-    apiKey: envTemplateValue(llm.apiKey, env) ?? env.OPENAI_LLM_API_KEY ?? openaiApiKey,
+    baseUrl: llm.baseUrl ?? env.OPENAI_LLM_BASE_URL ?? env.OPENAI_BASE_URL ?? DEFAULT_OPENAI_BASE_URL,
+    apiKey: envTemplateValue(llm.apiKey, env) ?? env.OPENAI_LLM_API_KEY ?? env.OPENAI_API_KEY,
     model: llmModel
   };
   const embeddingConfig = {
-    baseUrl: embedding.baseUrl ?? env.OPENAI_EMBEDDING_BASE_URL ?? openaiBaseUrl,
-    apiKey: envTemplateValue(embedding.apiKey, env) ?? env.OPENAI_EMBEDDING_API_KEY ?? openaiApiKey,
+    baseUrl: embedding.baseUrl ?? env.OPENAI_EMBEDDING_BASE_URL ?? env.OPENAI_BASE_URL ?? DEFAULT_OPENAI_BASE_URL,
+    apiKey: envTemplateValue(embedding.apiKey, env) ?? env.OPENAI_EMBEDDING_API_KEY ?? env.OPENAI_API_KEY,
     model: embeddingModel,
     dims: embeddingDims
   };
@@ -86,17 +84,11 @@ function parseConfig(value = {}, opts = {}) {
       password: elasticsearch.password ?? env.ELASTICSEARCH_PASSWORD
     },
     openaiCompatible: {
-      baseUrl: openaiBaseUrl,
-      apiKey: openaiApiKey,
-      llmModel,
-      embeddingModel,
-      embeddingDims,
       llm: llmConfig,
       embedding: embeddingConfig
     },
     search: {
       mode: "hybrid",
-      numCandidates: numberValue(search.numCandidates, 100),
       semanticWeight: numberValue(search.semanticWeight, 0.6),
       keywordWeight: numberValue(search.keywordWeight, 0.4)
     },
@@ -121,11 +113,6 @@ function redactedConfigSummary(config) {
       auth: config.elasticsearch.apiKey ? "apiKey" : config.elasticsearch.username ? "basic" : "none"
     },
     openaiCompatible: {
-      baseUrl: config.openaiCompatible.baseUrl,
-      llmModel: config.openaiCompatible.llmModel,
-      embeddingModel: config.openaiCompatible.embeddingModel,
-      embeddingDims: config.openaiCompatible.embeddingDims,
-      apiKeyConfigured: Boolean(config.openaiCompatible.apiKey),
       llm: {
         baseUrl: config.openaiCompatible.llm.baseUrl,
         model: config.openaiCompatible.llm.model,
@@ -247,7 +234,7 @@ function buildKeywordQuery(query, filters = []) {
   if (!filters.length) return textQuery;
   return { bool: { must: [textQuery], filter: filters } };
 }
-function buildKnnSearchBody({ vector, topK, filters = [], numCandidates = 100 }) {
+function buildKnnSearchBody({ vector, topK, filters = [] }) {
   const knnFilter = filters.length ? { bool: { filter: filters } } : void 0;
   return {
     size: topK,
@@ -255,7 +242,6 @@ function buildKnnSearchBody({ vector, topK, filters = [], numCandidates = 100 })
       field: "vector",
       query_vector: vector,
       k: topK,
-      num_candidates: Math.max(numCandidates, topK),
       ...knnFilter ? { filter: knnFilter } : {}
     },
     _source: { excludes: ["vector"] }
@@ -625,7 +611,7 @@ var ElasticsearchMemoryStore = class {
             text_lemmatized: { type: "text" },
             vector: {
               type: "dense_vector",
-              dims: this.config.openaiCompatible.embeddingDims,
+              dims: this.config.openaiCompatible.embedding.dims,
               index: true,
               similarity: "cosine"
             },
@@ -735,7 +721,7 @@ var ElasticsearchMemoryStore = class {
     const vector = await this.model.embed(query);
     const semanticPromise = this.request(`/${encodeURIComponent(this.index)}/_search`, {
       method: "POST",
-      body: buildKnnSearchBody({ vector, topK, filters, numCandidates: this.config.search.numCandidates })
+      body: buildKnnSearchBody({ vector, topK, filters })
     });
     const [semanticResponse, keywordResponse] = await Promise.all([
       semanticPromise,
@@ -1128,16 +1114,10 @@ function buildPluginConfig(input) {
     },
     search: {
       mode: "hybrid",
-      numCandidates: 100,
       semanticWeight: 0.6,
       keywordWeight: 0.4
     },
     openaiCompatible: {
-      baseUrl: input.openaiCompatibleBaseUrl,
-      apiKey: input.openaiCompatibleApiKeyRef,
-      llmModel: input.llmModel,
-      embeddingModel: input.embeddingModel,
-      embeddingDims: input.embeddingDims,
       llm: {
         baseUrl: input.llmBaseUrl,
         apiKey: input.llmApiKeyRef,
@@ -1291,27 +1271,26 @@ function registerCliCommands(api, config, store) {
         const existingLlm = objectValue2(existingOpenaiCompatible.llm);
         const existingEmbedding = objectValue2(existingOpenaiCompatible.embedding);
         const existingReranker = objectValue2(existingConfig.reranker);
-        const baseUrl = reusableOption(opts, command, "baseUrl", stringValue(existingOpenaiCompatible.baseUrl), DEFAULT_BASE_URL);
-        const llmModel = reusableOption(opts, command, "llmModel", stringValue(existingLlm.model) ?? stringValue(existingOpenaiCompatible.llmModel), DEFAULT_LLM_MODEL2);
+        const baseUrl = optionWasSet(command, "baseUrl") ? opts.baseUrl ?? DEFAULT_BASE_URL : DEFAULT_BASE_URL;
+        const llmModel = reusableOption(opts, command, "llmModel", stringValue(existingLlm.model), DEFAULT_LLM_MODEL2);
         const embeddingModel = reusableOption(
           opts,
           command,
           "embeddingModel",
-          stringValue(existingEmbedding.model) ?? stringValue(existingOpenaiCompatible.embeddingModel),
+          stringValue(existingEmbedding.model),
           DEFAULT_EMBEDDING_MODEL2
         );
-        const embeddingDims = optionWasSet(command, "embeddingDims") ? numberOption(opts.embeddingDims, DEFAULT_EMBEDDING_DIMS2) : opts.reuseValues ? numberValue2(existingEmbedding.dims) ?? numberValue2(existingOpenaiCompatible.embeddingDims) ?? DEFAULT_EMBEDDING_DIMS2 : numberOption(opts.embeddingDims, DEFAULT_EMBEDDING_DIMS2);
+        const embeddingDims = optionWasSet(command, "embeddingDims") ? numberOption(opts.embeddingDims, DEFAULT_EMBEDDING_DIMS2) : opts.reuseValues ? numberValue2(existingEmbedding.dims) ?? DEFAULT_EMBEDDING_DIMS2 : numberOption(opts.embeddingDims, DEFAULT_EMBEDDING_DIMS2);
         const apiKey = opts.apiKey;
         const apiKeyEnv = "OPENAI_API_KEY";
         const llmApiKeyEnv = opts.llmApiKey ? "OPENAI_LLM_API_KEY" : apiKeyEnv;
         const embeddingApiKeyEnv = opts.embeddingApiKey ? "OPENAI_EMBEDDING_API_KEY" : apiKeyEnv;
         const rerankerApiKeyEnv = "JINA_API_KEY";
         const apiKeyRef = `\${${apiKeyEnv}}`;
-        const openaiCompatibleApiKeyRef = optionWasSet(command, "apiKey") ? apiKeyRef : opts.reuseValues ? stringValue(existingOpenaiCompatible.apiKey) ?? apiKeyRef : apiKeyRef;
         const llmBaseUrl = optionWasSet(command, "llmBaseUrl") ? opts.llmBaseUrl ?? baseUrl : optionWasSet(command, "baseUrl") ? baseUrl : opts.reuseValues ? stringValue(existingLlm.baseUrl) ?? baseUrl : baseUrl;
         const embeddingBaseUrl = optionWasSet(command, "embeddingBaseUrl") ? opts.embeddingBaseUrl ?? baseUrl : optionWasSet(command, "baseUrl") ? baseUrl : opts.reuseValues ? stringValue(existingEmbedding.baseUrl) ?? baseUrl : baseUrl;
-        const llmApiKeyRef = opts.llmApiKey ? `\${${llmApiKeyEnv}}` : optionWasSet(command, "apiKey") ? openaiCompatibleApiKeyRef : opts.reuseValues ? stringValue(existingLlm.apiKey) ?? openaiCompatibleApiKeyRef : openaiCompatibleApiKeyRef;
-        const embeddingApiKeyRef = opts.embeddingApiKey ? `\${${embeddingApiKeyEnv}}` : optionWasSet(command, "apiKey") ? openaiCompatibleApiKeyRef : opts.reuseValues ? stringValue(existingEmbedding.apiKey) ?? openaiCompatibleApiKeyRef : openaiCompatibleApiKeyRef;
+        const llmApiKeyRef = opts.llmApiKey ? `\${${llmApiKeyEnv}}` : optionWasSet(command, "apiKey") ? apiKeyRef : opts.reuseValues ? stringValue(existingLlm.apiKey) ?? apiKeyRef : apiKeyRef;
+        const embeddingApiKeyRef = opts.embeddingApiKey ? `\${${embeddingApiKeyEnv}}` : optionWasSet(command, "apiKey") ? apiKeyRef : opts.reuseValues ? stringValue(existingEmbedding.apiKey) ?? apiKeyRef : apiKeyRef;
         const rerankerApiKeyRef = `\${${rerankerApiKeyEnv}}`;
         if (apiKey) upsertEnvVar(apiKeyEnv, apiKey);
         if (opts.llmApiKey) upsertEnvVar(llmApiKeyEnv, opts.llmApiKey);
@@ -1341,8 +1320,6 @@ function registerCliCommands(api, config, store) {
           elasticsearchApiKey,
           elasticsearchUsername,
           elasticsearchPassword,
-          openaiCompatibleBaseUrl: baseUrl,
-          openaiCompatibleApiKeyRef,
           llmBaseUrl,
           llmApiKeyRef,
           llmModel,
@@ -1368,8 +1345,6 @@ function registerCliCommands(api, config, store) {
             index: elasticsearchIndex
           },
           openaiCompatible: {
-            baseUrl,
-            apiKey: openaiCompatibleApiKeyRef,
             llm: {
               baseUrl: llmBaseUrl,
               model: llmModel,
@@ -1380,10 +1355,7 @@ function registerCliCommands(api, config, store) {
               model: embeddingModel,
               dims: embeddingDims,
               apiKey: embeddingApiKeyRef
-            },
-            llmModel,
-            embeddingModel,
-            embeddingDims
+            }
           },
           reranker: {
             enabled: rerankerEnabled,
@@ -1537,11 +1509,6 @@ function registerCliCommands(api, config, store) {
           auth: config.elasticsearch.apiKey ? "apiKey" : config.elasticsearch.username ? "basic" : "none"
         },
         openaiCompatible: {
-          baseUrl: config.openaiCompatible.baseUrl,
-          llmModel: config.openaiCompatible.llmModel,
-          embeddingModel: config.openaiCompatible.embeddingModel,
-          embeddingDims: config.openaiCompatible.embeddingDims,
-          apiKeyConfigured: Boolean(config.openaiCompatible.apiKey),
           llm: {
             baseUrl: config.openaiCompatible.llm.baseUrl,
             model: config.openaiCompatible.llm.model,

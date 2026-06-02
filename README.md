@@ -164,8 +164,6 @@ Minimal generated config shape:
             "index": "openclaw-memory"
           },
           "openaiCompatible": {
-            "baseUrl": "https://api.openai.com/v1",
-            "apiKey": "${OPENAI_API_KEY}",
             "llm": {
               "baseUrl": "https://api.openai.com/v1",
               "apiKey": "${OPENAI_API_KEY}",
@@ -180,7 +178,6 @@ Minimal generated config shape:
           },
           "search": {
             "mode": "hybrid",
-            "numCandidates": 100,
             "semanticWeight": 0.6,
             "keywordWeight": 0.4
           },

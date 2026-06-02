@@ -6,11 +6,17 @@ describe("ElasticsearchMemoryStore.add", () => {
   it("stores Mem0-style memory metadata with the current document shape", async () => {
     const config = parseConfig({
       openaiCompatible: {
-        baseUrl: "https://api.example/v1",
-        apiKey: "test-key",
-        llmModel: "test-llm",
-        embeddingModel: "test-embedding",
-        embeddingDims: 3,
+        llm: {
+          baseUrl: "https://api.example/v1",
+          apiKey: "test-key",
+          model: "test-llm",
+        },
+        embedding: {
+          baseUrl: "https://api.example/v1",
+          apiKey: "test-key",
+          model: "test-embedding",
+          dims: 3,
+        },
       },
     }, { env: {}, username: "test-user" });
     const model = {
@@ -65,11 +71,17 @@ describe("ElasticsearchMemoryStore.add", () => {
   it("uses existing related memories to skip semantically duplicate direct memories", async () => {
     const config = parseConfig({
       openaiCompatible: {
-        baseUrl: "https://api.example/v1",
-        apiKey: "test-key",
-        llmModel: "test-llm",
-        embeddingModel: "test-embedding",
-        embeddingDims: 3,
+        llm: {
+          baseUrl: "https://api.example/v1",
+          apiKey: "test-key",
+          model: "test-llm",
+        },
+        embedding: {
+          baseUrl: "https://api.example/v1",
+          apiKey: "test-key",
+          model: "test-embedding",
+          dims: 3,
+        },
       },
     }, { env: {}, username: "test-user" });
     const model = {

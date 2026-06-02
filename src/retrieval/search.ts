@@ -47,11 +47,10 @@ export function buildKeywordQuery(query: string, filters: Record<string, unknown
   return { bool: { must: [textQuery], filter: filters } };
 }
 
-export function buildKnnSearchBody({ vector, topK, filters = [], numCandidates = 100 }: {
+export function buildKnnSearchBody({ vector, topK, filters = [] }: {
   vector: number[];
   topK: number;
   filters?: Record<string, unknown>[];
-  numCandidates?: number;
 }): Record<string, unknown> {
   const knnFilter = filters.length ? { bool: { filter: filters } } : undefined;
   return {
@@ -60,7 +59,6 @@ export function buildKnnSearchBody({ vector, topK, filters = [], numCandidates =
       field: "vector",
       query_vector: vector,
       k: topK,
-      num_candidates: Math.max(numCandidates, topK),
       ...(knnFilter ? { filter: knnFilter } : {}),
     },
     _source: { excludes: ["vector"] },

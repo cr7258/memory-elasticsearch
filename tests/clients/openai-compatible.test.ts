@@ -19,8 +19,6 @@ describe("OpenAICompatibleClient", () => {
   it("uses the embedding endpoint configuration for embeddings", async () => {
     const cfg = parseConfig({
       openaiCompatible: {
-        baseUrl: "https://llm.example/v1",
-        apiKey: "llm-key",
         llm: {
           baseUrl: "https://llm.example/v1",
           apiKey: "llm-key",
@@ -49,9 +47,12 @@ describe("OpenAICompatibleClient", () => {
   it("uses the chat endpoint configuration for chat completions", async () => {
     const cfg = parseConfig({
       openaiCompatible: {
-        baseUrl: "https://embedding.example/v1",
-        apiKey: "embedding-key",
-        embeddingModel: "embedding-model",
+        embedding: {
+          baseUrl: "https://embedding.example/v1",
+          apiKey: "embedding-key",
+          model: "embedding-model",
+          dims: 4096,
+        },
         llm: {
           baseUrl: "https://llm.example/v1",
           apiKey: "llm-key",
@@ -76,8 +77,10 @@ describe("OpenAICompatibleClient", () => {
   it("fails loudly when chat completions do not return JSON content", async () => {
     const cfg = parseConfig({
       openaiCompatible: {
-        apiKey: "test-key",
-        llmModel: "llm-model",
+        llm: {
+          apiKey: "test-key",
+          model: "llm-model",
+        },
       },
     }, { env: {}, username: "test-user" });
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({

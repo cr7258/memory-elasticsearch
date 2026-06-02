@@ -55,26 +55,16 @@ export function parseConfig(value: unknown = {}, opts: { env?: Record<string, st
   const embedding = objectValue(openaiCompatible.embedding);
   const search = objectValue(cfg.search);
   const reranker = objectValue(cfg.reranker);
-  const openaiBaseUrl =
-    openaiCompatible.baseUrl ??
-    env.OPENAI_BASE_URL ??
-    DEFAULT_OPENAI_BASE_URL;
-  const openaiApiKey =
-    envTemplateValue(openaiCompatible.apiKey, env) ??
-    env.OPENAI_API_KEY;
   const llmModel =
     llm.model ??
-    openaiCompatible.llmModel ??
     env.OPENAI_LLM_MODEL ??
     DEFAULT_LLM_MODEL;
   const embeddingModel =
     embedding.model ??
-    openaiCompatible.embeddingModel ??
     env.OPENAI_EMBEDDING_MODEL ??
     DEFAULT_EMBEDDING_MODEL;
   const embeddingDims = numberValue(
     embedding.dims ??
-      openaiCompatible.embeddingDims ??
       env.OPENAI_EMBEDDING_DIMS,
     DEFAULT_EMBEDDING_DIMS,
   );
@@ -82,19 +72,20 @@ export function parseConfig(value: unknown = {}, opts: { env?: Record<string, st
     baseUrl:
       llm.baseUrl ??
       env.OPENAI_LLM_BASE_URL ??
-      openaiBaseUrl,
+      env.OPENAI_BASE_URL ??
+      DEFAULT_OPENAI_BASE_URL,
     apiKey:
       envTemplateValue(llm.apiKey, env) ??
       env.OPENAI_LLM_API_KEY ??
-      openaiApiKey,
+      env.OPENAI_API_KEY,
     model: llmModel,
   };
   const embeddingConfig = {
-    baseUrl: embedding.baseUrl ?? env.OPENAI_EMBEDDING_BASE_URL ?? openaiBaseUrl,
+    baseUrl: embedding.baseUrl ?? env.OPENAI_EMBEDDING_BASE_URL ?? env.OPENAI_BASE_URL ?? DEFAULT_OPENAI_BASE_URL,
     apiKey:
       envTemplateValue(embedding.apiKey, env) ??
       env.OPENAI_EMBEDDING_API_KEY ??
-      openaiApiKey,
+      env.OPENAI_API_KEY,
     model: embeddingModel,
     dims: embeddingDims,
   };
@@ -117,17 +108,11 @@ export function parseConfig(value: unknown = {}, opts: { env?: Record<string, st
       password: elasticsearch.password ?? env.ELASTICSEARCH_PASSWORD,
     },
     openaiCompatible: {
-      baseUrl: openaiBaseUrl,
-      apiKey: openaiApiKey,
-      llmModel,
-      embeddingModel,
-      embeddingDims,
       llm: llmConfig,
       embedding: embeddingConfig,
     },
     search: {
       mode: "hybrid",
-      numCandidates: numberValue(search.numCandidates, 100),
       semanticWeight: numberValue(search.semanticWeight, 0.6),
       keywordWeight: numberValue(search.keywordWeight, 0.4),
     },
@@ -153,11 +138,6 @@ export function redactedConfigSummary(config: MemoryConfig): Record<string, unkn
       auth: config.elasticsearch.apiKey ? "apiKey" : config.elasticsearch.username ? "basic" : "none",
     },
     openaiCompatible: {
-      baseUrl: config.openaiCompatible.baseUrl,
-      llmModel: config.openaiCompatible.llmModel,
-      embeddingModel: config.openaiCompatible.embeddingModel,
-      embeddingDims: config.openaiCompatible.embeddingDims,
-      apiKeyConfigured: Boolean(config.openaiCompatible.apiKey),
       llm: {
         baseUrl: config.openaiCompatible.llm.baseUrl,
         model: config.openaiCompatible.llm.model,

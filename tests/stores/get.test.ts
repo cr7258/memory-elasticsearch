@@ -5,10 +5,15 @@ import { ElasticsearchMemoryStore } from "../../src/stores/elasticsearch.js";
 function createStore(): ElasticsearchMemoryStore {
   const config = parseConfig({
     openaiCompatible: {
-      apiKey: "test-key",
-      llmModel: "test-llm",
-      embeddingModel: "test-embedding",
-      embeddingDims: 3,
+      llm: {
+        apiKey: "test-key",
+        model: "test-llm",
+      },
+      embedding: {
+        apiKey: "test-key",
+        model: "test-embedding",
+        dims: 3,
+      },
     },
   }, { env: {}, username: "alice" });
   return new ElasticsearchMemoryStore({

@@ -1,6 +1,6 @@
 {
   "name": "@cr7258/memory-elasticsearch",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "type": "module",
   "description": "Elasticsearch-backed long-term memory plugin for OpenClaw with BM25 + vector hybrid retrieval.",
   "license": "Apache-2.0",

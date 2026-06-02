@@ -193,19 +193,19 @@ export function registerCliCommands(api: any, config: MemoryConfig, store?: Memo
           const existingEmbedding = objectValue(existingOpenaiCompatible.embedding);
           const existingReranker = objectValue(existingConfig.reranker);
 
-          const baseUrl = reusableOption(opts, command, "baseUrl", stringValue(existingOpenaiCompatible.baseUrl), DEFAULT_BASE_URL);
-          const llmModel = reusableOption(opts, command, "llmModel", stringValue(existingLlm.model) ?? stringValue(existingOpenaiCompatible.llmModel), DEFAULT_LLM_MODEL);
+          const baseUrl = optionWasSet(command, "baseUrl") ? opts.baseUrl ?? DEFAULT_BASE_URL : DEFAULT_BASE_URL;
+          const llmModel = reusableOption(opts, command, "llmModel", stringValue(existingLlm.model), DEFAULT_LLM_MODEL);
           const embeddingModel = reusableOption(
             opts,
             command,
             "embeddingModel",
-            stringValue(existingEmbedding.model) ?? stringValue(existingOpenaiCompatible.embeddingModel),
+            stringValue(existingEmbedding.model),
             DEFAULT_EMBEDDING_MODEL,
           );
           const embeddingDims = optionWasSet(command, "embeddingDims")
             ? numberOption(opts.embeddingDims, DEFAULT_EMBEDDING_DIMS)
             : opts.reuseValues
-              ? numberValue(existingEmbedding.dims) ?? numberValue(existingOpenaiCompatible.embeddingDims) ?? DEFAULT_EMBEDDING_DIMS
+              ? numberValue(existingEmbedding.dims) ?? DEFAULT_EMBEDDING_DIMS
               : numberOption(opts.embeddingDims, DEFAULT_EMBEDDING_DIMS);
           const apiKey = opts.apiKey;
           const apiKeyEnv = "OPENAI_API_KEY";
@@ -213,11 +213,6 @@ export function registerCliCommands(api: any, config: MemoryConfig, store?: Memo
           const embeddingApiKeyEnv = opts.embeddingApiKey ? "OPENAI_EMBEDDING_API_KEY" : apiKeyEnv;
           const rerankerApiKeyEnv = "JINA_API_KEY";
           const apiKeyRef = `\${${apiKeyEnv}}`;
-          const openaiCompatibleApiKeyRef = optionWasSet(command, "apiKey")
-            ? apiKeyRef
-            : opts.reuseValues
-              ? stringValue(existingOpenaiCompatible.apiKey) ?? apiKeyRef
-              : apiKeyRef;
           const llmBaseUrl = optionWasSet(command, "llmBaseUrl")
             ? opts.llmBaseUrl ?? baseUrl
             : optionWasSet(command, "baseUrl")
@@ -235,17 +230,17 @@ export function registerCliCommands(api: any, config: MemoryConfig, store?: Memo
           const llmApiKeyRef = opts.llmApiKey
             ? `\${${llmApiKeyEnv}}`
             : optionWasSet(command, "apiKey")
-              ? openaiCompatibleApiKeyRef
+              ? apiKeyRef
               : opts.reuseValues
-                ? stringValue(existingLlm.apiKey) ?? openaiCompatibleApiKeyRef
-                : openaiCompatibleApiKeyRef;
+                ? stringValue(existingLlm.apiKey) ?? apiKeyRef
+                : apiKeyRef;
           const embeddingApiKeyRef = opts.embeddingApiKey
             ? `\${${embeddingApiKeyEnv}}`
             : optionWasSet(command, "apiKey")
-              ? openaiCompatibleApiKeyRef
+              ? apiKeyRef
               : opts.reuseValues
-                ? stringValue(existingEmbedding.apiKey) ?? openaiCompatibleApiKeyRef
-                : openaiCompatibleApiKeyRef;
+                ? stringValue(existingEmbedding.apiKey) ?? apiKeyRef
+                : apiKeyRef;
           const rerankerApiKeyRef = `\${${rerankerApiKeyEnv}}`;
           if (apiKey) upsertEnvVar(apiKeyEnv, apiKey);
           if (opts.llmApiKey) upsertEnvVar(llmApiKeyEnv, opts.llmApiKey);
@@ -302,8 +297,6 @@ export function registerCliCommands(api: any, config: MemoryConfig, store?: Memo
             elasticsearchApiKey,
             elasticsearchUsername,
             elasticsearchPassword,
-            openaiCompatibleBaseUrl: baseUrl,
-            openaiCompatibleApiKeyRef,
             llmBaseUrl,
             llmApiKeyRef,
             llmModel,
@@ -330,8 +323,6 @@ export function registerCliCommands(api: any, config: MemoryConfig, store?: Memo
               index: elasticsearchIndex,
             },
             openaiCompatible: {
-              baseUrl,
-              apiKey: openaiCompatibleApiKeyRef,
               llm: {
                 baseUrl: llmBaseUrl,
                 model: llmModel,
@@ -343,9 +334,6 @@ export function registerCliCommands(api: any, config: MemoryConfig, store?: Memo
                 dims: embeddingDims,
                 apiKey: embeddingApiKeyRef,
               },
-              llmModel,
-              embeddingModel,
-              embeddingDims,
             },
             reranker: {
               enabled: rerankerEnabled,
@@ -547,11 +535,6 @@ export function registerCliCommands(api: any, config: MemoryConfig, store?: Memo
             auth: config.elasticsearch.apiKey ? "apiKey" : config.elasticsearch.username ? "basic" : "none",
           },
           openaiCompatible: {
-            baseUrl: config.openaiCompatible.baseUrl,
-            llmModel: config.openaiCompatible.llmModel,
-            embeddingModel: config.openaiCompatible.embeddingModel,
-            embeddingDims: config.openaiCompatible.embeddingDims,
-            apiKeyConfigured: Boolean(config.openaiCompatible.apiKey),
             llm: {
               baseUrl: config.openaiCompatible.llm.baseUrl,
               model: config.openaiCompatible.llm.model,
