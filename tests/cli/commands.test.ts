@@ -76,4 +76,52 @@ describe("registerCliCommands", () => {
 
     expect(stdout).toHaveBeenCalledWith("Duplicate memory found; no new memory stored.\n");
   });
+
+  it("prompts before deleting all memories when --confirm is omitted", async () => {
+    const calls: Array<{ registrar: Function; opts: any }> = [];
+    const api = {
+      registerCli(registrar: Function, opts: any) {
+        calls.push({ registrar, opts });
+      },
+    };
+    const store = {
+      deleteAll: vi.fn(async () => ({ deleted: 3 })),
+    };
+    const confirmDeleteAll = vi.fn(async () => true);
+    const stdout = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    const actions = new Map<string, Function>();
+    const program = commandStub(actions);
+
+    registerCliCommands(api, parseConfig({}, { env: {}, username: "alice" }), store as any, { confirmDeleteAll });
+    calls[0].registrar({ program });
+    await actions.get("delete")?.({ all: true });
+
+    expect(confirmDeleteAll).toHaveBeenCalledWith("alice");
+    expect(store.deleteAll).toHaveBeenCalledWith("alice");
+    expect(stdout).toHaveBeenCalledWith("Deleted 3 memories.\n");
+  });
+
+  it("cancels delete --all when the confirmation prompt is declined", async () => {
+    const calls: Array<{ registrar: Function; opts: any }> = [];
+    const api = {
+      registerCli(registrar: Function, opts: any) {
+        calls.push({ registrar, opts });
+      },
+    };
+    const store = {
+      deleteAll: vi.fn(),
+    };
+    const confirmDeleteAll = vi.fn(async () => false);
+    const stdout = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+    const actions = new Map<string, Function>();
+    const program = commandStub(actions);
+
+    registerCliCommands(api, parseConfig({}, { env: {}, username: "alice" }), store as any, { confirmDeleteAll });
+    calls[0].registrar({ program });
+    await actions.get("delete")?.({ all: true });
+
+    expect(confirmDeleteAll).toHaveBeenCalledWith("alice");
+    expect(store.deleteAll).not.toHaveBeenCalled();
+    expect(stdout).toHaveBeenCalledWith("Delete cancelled.\n");
+  });
 });

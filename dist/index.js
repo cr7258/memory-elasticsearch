@@ -1055,6 +1055,7 @@ function registerAllTools(api, deps) {
 
 // src/cli/commands.ts
 import { userInfo as userInfo2 } from "os";
+import { createInterface } from "readline/promises";
 
 // src/cli/config-file.ts
 import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync } from "fs";
@@ -1195,6 +1196,18 @@ var DEFAULT_RERANKER_BASE_URL2 = "https://api.jina.ai";
 var DEFAULT_RERANKER_MODEL2 = "jina-reranker-v3";
 var DEFAULT_ELASTICSEARCH_URL = "http://localhost:9200";
 var DEFAULT_INDEX2 = "openclaw-memory";
+async function confirmDeleteAll(userId) {
+  const rl = createInterface({
+    input: process.stdin,
+    output: process.stderr
+  });
+  try {
+    const answer = await rl.question(`Delete all memories for user "${userId}"? [y/N] `);
+    return /^(y|yes)$/i.test(answer.trim());
+  } finally {
+    rl.close();
+  }
+}
 function systemUser() {
   try {
     return userInfo2().username || "default";
@@ -1259,7 +1272,7 @@ function formatMemories(memories) {
 function commandText(parts) {
   return Array.isArray(parts) ? parts.join(" ").trim() : String(parts ?? "").trim();
 }
-function registerCliCommands(api, config, store) {
+function registerCliCommands(api, config, store, deps = {}) {
   if (typeof api.registerCli !== "function") return;
   api.registerCli(({ program }) => {
     const root = program.command("memory-elasticsearch").alias("memory-es").description("Elasticsearch memory plugin commands");
@@ -1472,19 +1485,27 @@ function registerCliCommands(api, config, store) {
         errOut(`list failed: ${String(err)}`);
       }
     });
-    root.command("delete").description("Delete memories by id, query, or all user memories").option("--memory-id <id>", "Delete one memory by id").option("--query <query>", "Delete memories matched by search").option("--all", "Delete all memories for the user").option("--confirm", "Required with --all").option("--user-id <id>", "Override user ID").option("--json", "Machine-readable output").action(async (opts) => {
+    root.command("delete").description("Delete memories by id, query, or all user memories").option("--memory-id <id>", "Delete one memory by id").option("--query <query>", "Delete memories matched by search").option("--all", "Delete all memories for the user").option("--confirm", "Skip confirmation prompt with --all").option("--user-id <id>", "Override user ID").option("--json", "Machine-readable output").action(async (opts) => {
       try {
         if (!store) throw new Error("Memory store is not available.");
         let result;
         if (opts.all) {
-          if (!opts.confirm) throw new Error("--all requires --confirm.");
-          result = await store.deleteAll(opts.userId ?? config.userId);
+          const userId = opts.userId ?? config.userId;
+          if (!opts.confirm) {
+            if (opts.json) throw new Error("--all requires --confirm when --json is used.");
+            const confirmed = await (deps.confirmDeleteAll ?? confirmDeleteAll)(userId);
+            if (!confirmed) {
+              out("Delete cancelled.");
+              return;
+            }
+          }
+          result = await store.deleteAll(userId);
         } else if (opts.query) {
           result = await store.deleteByQuery(opts.query, { user_id: opts.userId ?? config.userId, top_k: 20 });
         } else if (opts.memoryId) {
           result = await store.delete(opts.memoryId);
         } else {
-          throw new Error("Pass --memory-id, --query, or --all --confirm.");
+          throw new Error("Pass --memory-id, --query, or --all.");
         }
         const payload = { ok: true, ...result };
         if (jsonOut(opts, payload)) return;

@@ -1,4 +1,5 @@
 import { userInfo } from "node:os";
+import { createInterface } from "node:readline/promises";
 import type { MemoryConfig, MemoryRecord, MemoryStore, SearchOptions } from "../types.js";
 import { OPENCLAW_CONFIG_FILE, OPENCLAW_ENV_FILE, patchOpenClawConfig, readOpenClawPluginConfig, upsertEnvVar } from "./config-file.js";
 
@@ -69,6 +70,23 @@ interface DeleteCliOptions {
   confirm?: boolean;
   userId?: string;
   json?: boolean;
+}
+
+interface CliCommandDeps {
+  confirmDeleteAll?: (userId: string) => Promise<boolean>;
+}
+
+async function confirmDeleteAll(userId: string): Promise<boolean> {
+  const rl = createInterface({
+    input: process.stdin,
+    output: process.stderr,
+  });
+  try {
+    const answer = await rl.question(`Delete all memories for user "${userId}"? [y/N] `);
+    return /^(y|yes)$/i.test(answer.trim());
+  } finally {
+    rl.close();
+  }
 }
 
 function systemUser(): string {
@@ -147,7 +165,7 @@ function commandText(parts: string | string[]): string {
   return Array.isArray(parts) ? parts.join(" ").trim() : String(parts ?? "").trim();
 }
 
-export function registerCliCommands(api: any, config: MemoryConfig, store?: MemoryStore): void {
+export function registerCliCommands(api: any, config: MemoryConfig, store?: MemoryStore, deps: CliCommandDeps = {}): void {
   if (typeof api.registerCli !== "function") return;
 
   api.registerCli(({ program }: { program: any }) => {
@@ -490,7 +508,7 @@ export function registerCliCommands(api: any, config: MemoryConfig, store?: Memo
       .option("--memory-id <id>", "Delete one memory by id")
       .option("--query <query>", "Delete memories matched by search")
       .option("--all", "Delete all memories for the user")
-      .option("--confirm", "Required with --all")
+      .option("--confirm", "Skip confirmation prompt with --all")
       .option("--user-id <id>", "Override user ID")
       .option("--json", "Machine-readable output")
       .action(async (opts: DeleteCliOptions) => {
@@ -498,14 +516,22 @@ export function registerCliCommands(api: any, config: MemoryConfig, store?: Memo
           if (!store) throw new Error("Memory store is not available.");
           let result: { deleted: number; ids?: string[] };
           if (opts.all) {
-            if (!opts.confirm) throw new Error("--all requires --confirm.");
-            result = await store.deleteAll(opts.userId ?? config.userId);
+            const userId = opts.userId ?? config.userId;
+            if (!opts.confirm) {
+              if (opts.json) throw new Error("--all requires --confirm when --json is used.");
+              const confirmed = await (deps.confirmDeleteAll ?? confirmDeleteAll)(userId);
+              if (!confirmed) {
+                out("Delete cancelled.");
+                return;
+              }
+            }
+            result = await store.deleteAll(userId);
           } else if (opts.query) {
             result = await store.deleteByQuery(opts.query, { user_id: opts.userId ?? config.userId, top_k: 20 });
           } else if (opts.memoryId) {
             result = await store.delete(opts.memoryId);
           } else {
-            throw new Error("Pass --memory-id, --query, or --all --confirm.");
+            throw new Error("Pass --memory-id, --query, or --all.");
           }
           const payload = { ok: true, ...result };
           if (jsonOut(opts, payload)) return;
