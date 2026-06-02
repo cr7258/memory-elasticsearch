@@ -11,11 +11,8 @@ It replaces the active OpenClaw memory slot with an Elasticsearch store that sup
 - hybrid retrieval using vector search plus BM25
 - optional reranking with Jina, defaulting to `jina-reranker-v3`
 
-All stored memories are persistent memories. The plugin does not split storage into session-scoped and long-term memories.
-
 ## Prerequisites
 
-- OpenClaw with plugin support
 - Elasticsearch with `dense_vector` and kNN support. For local development, a single-node Elasticsearch instance is enough:
 
 ```bash
@@ -111,6 +108,12 @@ openclaw tui --session t2
 
 ```text
 What do I usually drink in the morning?
+```
+
+Expected answer:
+
+```text
+You usually drink a milk latte in the morning.
 ```
 
 ## Reranker
@@ -267,10 +270,18 @@ curl -X DELETE 'http://localhost:9200/openclaw-memory'
 
 ## Memory CLI
 
-Check plugin status from the memory CLI:
+You can also manage memories directly from the CLI.
+
+List memories:
 
 ```bash
-openclaw memory-es status
+openclaw memory-es list
+```
+
+Add a memory:
+
+```bash
+openclaw memory-es add "User prefers Elasticsearch for OpenClaw memory"
 ```
 
 Search memories:
@@ -279,27 +290,8 @@ Search memories:
 openclaw memory-es search "what languages does the user know"
 ```
 
-List memories:
-
-```bash
-openclaw memory-es list
-openclaw memory-es list --user-id alice --top-k 20
-```
-
-Add an explicit memory:
-
-```bash
-openclaw memory-es add "User prefers Elasticsearch for OpenClaw memory"
-```
-
-Delete by query. The plugin searches first and deletes only literal text matches:
+Delete memories:
 
 ```bash
 openclaw memory-es delete --query "User prefers Elasticsearch"
-```
-
-Delete all memories for a user:
-
-```bash
-openclaw memory-es delete --all --confirm --user-id alice
 ```
