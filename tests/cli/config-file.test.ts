@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { buildPluginConfig, cleanupOpenClawConfig, type InitConfigInput, patchOpenClawConfig, readOpenClawPluginConfig } from "../../src/cli/config-file.js";
+import { buildPluginConfig, type InitConfigInput, patchOpenClawConfig, readOpenClawPluginConfig } from "../../src/cli/config-file.js";
 
 function initInput(overrides: Partial<InitConfigInput> = {}): InitConfigInput {
   return {
@@ -123,70 +123,4 @@ describe("readOpenClawPluginConfig", () => {
     }
   });
 
-  it("removes only memory-elasticsearch tools during cleanup", () => {
-    const dir = mkdtempSync(join(tmpdir(), "memory-es-config-"));
-    const path = join(dir, "openclaw.json");
-    try {
-      writeFileSync(path, JSON.stringify({
-        tools: {
-          profile: "coding",
-          alsoAllow: ["web_search", "memory_search", "memory_add", "browser"],
-        },
-        plugins: {
-          entries: {
-            "memory-elasticsearch": {
-              enabled: true,
-            },
-            openrouter: {
-              enabled: true,
-            },
-          },
-          slots: {
-            memory: "memory-elasticsearch",
-          },
-        },
-      }));
-
-      const cleanup = cleanupOpenClawConfig(path);
-
-      const config = JSON.parse(readFileSync(path, "utf8"));
-      expect(cleanup.removedTools).toEqual(["memory_search", "memory_add"]);
-      expect(cleanup.keptTools).toEqual(["web_search", "browser"]);
-      expect(config.tools).toEqual({
-        profile: "coding",
-        alsoAllow: ["web_search", "browser"],
-      });
-      expect(config.plugins.entries).toEqual({
-        openrouter: {
-          enabled: true,
-        },
-      });
-      expect(config.plugins.slots.memory).toBe("memory-core");
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  it("removes tools.alsoAllow when cleanup leaves no extra tools", () => {
-    const dir = mkdtempSync(join(tmpdir(), "memory-es-config-"));
-    const path = join(dir, "openclaw.json");
-    try {
-      writeFileSync(path, JSON.stringify({
-        tools: {
-          profile: "coding",
-          alsoAllow: ["memory_search", "memory_add"],
-        },
-      }));
-
-      const cleanup = cleanupOpenClawConfig(path);
-
-      const config = JSON.parse(readFileSync(path, "utf8"));
-      expect(cleanup.removedAlsoAllow).toBe(true);
-      expect(config.tools).toEqual({
-        profile: "coding",
-      });
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
 });

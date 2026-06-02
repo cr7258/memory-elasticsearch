@@ -1,6 +1,6 @@
 import { userInfo } from "node:os";
 import type { MemoryConfig, MemoryRecord, MemoryStore, SearchOptions } from "../types.js";
-import { OPENCLAW_CONFIG_FILE, OPENCLAW_ENV_FILE, PLUGIN_ID, cleanupOpenClawConfig, patchOpenClawConfig, readOpenClawPluginConfig, upsertEnvVar } from "./config-file.js";
+import { OPENCLAW_CONFIG_FILE, OPENCLAW_ENV_FILE, patchOpenClawConfig, readOpenClawPluginConfig, upsertEnvVar } from "./config-file.js";
 
 const DEFAULT_BASE_URL = "https://api.openai.com/v1";
 const DEFAULT_LLM_MODEL = "gpt-4o-mini";
@@ -68,10 +68,6 @@ interface DeleteCliOptions {
   all?: boolean;
   confirm?: boolean;
   userId?: string;
-  json?: boolean;
-}
-
-interface UninstallCliOptions {
   json?: boolean;
 }
 
@@ -530,38 +526,6 @@ export function registerCliCommands(api: any, config: MemoryConfig, store?: Memo
             return;
           }
           errOut(`delete failed: ${String(err)}`);
-        }
-      });
-
-    root
-      .command("uninstall")
-      .description("Remove memory-elasticsearch config and tool allowlist entries")
-      .option("--json", "Machine-readable output")
-      .action((opts: UninstallCliOptions) => {
-        try {
-          const cleanup = cleanupOpenClawConfig();
-          const payload = {
-            ok: true,
-            plugin: PLUGIN_ID,
-            configFile: OPENCLAW_CONFIG_FILE,
-            cleanup,
-            nextCommand: "openclaw plugins uninstall memory-elasticsearch --force",
-          };
-          if (jsonOut(opts, payload)) return;
-          out("memory-elasticsearch config cleanup complete");
-          if (cleanup.removedTools.length) out(`  Removed tools.alsoAllow entries: ${cleanup.removedTools.join(", ")}`);
-          if (cleanup.keptTools.length) out(`  Kept tools.alsoAllow entries: ${cleanup.keptTools.join(", ")}`);
-          if (cleanup.removedAlsoAllow) out("  Removed empty tools.alsoAllow");
-          if (cleanup.removedPluginEntry) out("  Removed plugin config entry");
-          if (cleanup.resetMemorySlot) out("  Reset memory slot to memory-core");
-          out("  Remove installed plugin package: openclaw plugins uninstall memory-elasticsearch --force");
-          out("  Restart the gateway: openclaw gateway restart");
-        } catch (err) {
-          if (opts.json) {
-            out(JSON.stringify({ ok: false, error: String(err) }, null, 2));
-            return;
-          }
-          errOut(`uninstall failed: ${String(err)}`);
         }
       });
 

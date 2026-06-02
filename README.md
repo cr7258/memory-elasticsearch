@@ -64,13 +64,7 @@ OpenClaw plugin install docs: https://docs.openclaw.ai/cli/plugins
 
 ## Uninstall
 
-First remove the plugin config and its tool allowlist entries:
-
-```bash
-openclaw memory-es uninstall
-```
-
-Then remove the installed plugin package:
+Remove the installed plugin package:
 
 ```bash
 openclaw plugins uninstall memory-elasticsearch --force

@@ -42,15 +42,6 @@ export interface InitConfigInput {
   rerankerModel: string;
 }
 
-export interface CleanupOpenClawConfigResult {
-  removedTools: string[];
-  keptTools: string[];
-  removedAlsoAllow: boolean;
-  removedPluginEntry: boolean;
-  resetMemorySlot: boolean;
-  changed: boolean;
-}
-
 function readJsonObject(path: string): Record<string, any> {
   if (!existsSync(path)) return {};
   const text = readFileSync(path, "utf8");
@@ -76,24 +67,6 @@ function mergeStringList(existing: unknown, values: string[], path: string): str
     if (typeof value !== "string" || !value.trim()) throw new Error(`${path} must contain only non-empty strings`);
     return value;
   }))];
-}
-
-function removeStringListValues(existing: unknown, values: string[], path: string): { next: string[]; removed: string[] } {
-  if (existing !== undefined && !Array.isArray(existing)) {
-    throw new Error(`${path} must be an array`);
-  }
-  const blocked = new Set(values);
-  const next: string[] = [];
-  const removed: string[] = [];
-  for (const value of Array.isArray(existing) ? existing : []) {
-    if (typeof value !== "string" || !value.trim()) throw new Error(`${path} must contain only non-empty strings`);
-    if (blocked.has(value)) {
-      removed.push(value);
-      continue;
-    }
-    next.push(value);
-  }
-  return { next, removed };
 }
 
 export function buildPluginConfig(input: InitConfigInput): Record<string, any> {
@@ -166,56 +139,6 @@ export function patchOpenClawConfig(input: InitConfigInput, path = OPENCLAW_CONF
   config.plugins.slots.memory = PLUGIN_ID;
 
   writeJsonObject(path, config);
-}
-
-export function cleanupOpenClawConfig(path = OPENCLAW_CONFIG_FILE): CleanupOpenClawConfigResult {
-  const config = readJsonObject(path);
-  const result: CleanupOpenClawConfigResult = {
-    removedTools: [],
-    keptTools: [],
-    removedAlsoAllow: false,
-    removedPluginEntry: false,
-    resetMemorySlot: false,
-    changed: false,
-  };
-
-  const tools = config.tools;
-  if (tools !== undefined) {
-    if (!tools || typeof tools !== "object" || Array.isArray(tools)) throw new Error("tools must be a JSON object");
-    if (Object.prototype.hasOwnProperty.call(tools, "alsoAllow")) {
-      const { next, removed } = removeStringListValues(tools.alsoAllow, MEMORY_TOOL_ALLOWLIST, "tools.alsoAllow");
-      result.removedTools = removed;
-      result.keptTools = next;
-      if (removed.length > 0) {
-        if (next.length > 0) {
-          tools.alsoAllow = next;
-        } else {
-          delete tools.alsoAllow;
-          result.removedAlsoAllow = true;
-        }
-        result.changed = true;
-      }
-    }
-  }
-
-  const plugins = config.plugins;
-  if (plugins && typeof plugins === "object" && !Array.isArray(plugins)) {
-    const entries = plugins.entries;
-    if (entries && typeof entries === "object" && !Array.isArray(entries) && Object.prototype.hasOwnProperty.call(entries, PLUGIN_ID)) {
-      delete entries[PLUGIN_ID];
-      result.removedPluginEntry = true;
-      result.changed = true;
-    }
-    const slots = plugins.slots;
-    if (slots && typeof slots === "object" && !Array.isArray(slots) && slots.memory === PLUGIN_ID) {
-      slots.memory = "memory-core";
-      result.resetMemorySlot = true;
-      result.changed = true;
-    }
-  }
-
-  if (result.changed) writeJsonObject(path, config);
-  return result;
 }
 
 export function readOpenClawPluginConfig(path = OPENCLAW_CONFIG_FILE): Record<string, any> | undefined {

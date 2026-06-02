@@ -1112,23 +1112,6 @@ function mergeStringList(existing, values, path) {
     return value;
   }))];
 }
-function removeStringListValues(existing, values, path) {
-  if (existing !== void 0 && !Array.isArray(existing)) {
-    throw new Error(`${path} must be an array`);
-  }
-  const blocked = new Set(values);
-  const next = [];
-  const removed = [];
-  for (const value of Array.isArray(existing) ? existing : []) {
-    if (typeof value !== "string" || !value.trim()) throw new Error(`${path} must contain only non-empty strings`);
-    if (blocked.has(value)) {
-      removed.push(value);
-      continue;
-    }
-    next.push(value);
-  }
-  return { next, removed };
-}
 function buildPluginConfig(input) {
   return {
     userId: input.userId,
@@ -1195,52 +1178,6 @@ function patchOpenClawConfig(input, path = OPENCLAW_CONFIG_FILE) {
   };
   config.plugins.slots.memory = PLUGIN_ID;
   writeJsonObject(path, config);
-}
-function cleanupOpenClawConfig(path = OPENCLAW_CONFIG_FILE) {
-  const config = readJsonObject(path);
-  const result = {
-    removedTools: [],
-    keptTools: [],
-    removedAlsoAllow: false,
-    removedPluginEntry: false,
-    resetMemorySlot: false,
-    changed: false
-  };
-  const tools = config.tools;
-  if (tools !== void 0) {
-    if (!tools || typeof tools !== "object" || Array.isArray(tools)) throw new Error("tools must be a JSON object");
-    if (Object.prototype.hasOwnProperty.call(tools, "alsoAllow")) {
-      const { next, removed } = removeStringListValues(tools.alsoAllow, MEMORY_TOOL_ALLOWLIST, "tools.alsoAllow");
-      result.removedTools = removed;
-      result.keptTools = next;
-      if (removed.length > 0) {
-        if (next.length > 0) {
-          tools.alsoAllow = next;
-        } else {
-          delete tools.alsoAllow;
-          result.removedAlsoAllow = true;
-        }
-        result.changed = true;
-      }
-    }
-  }
-  const plugins = config.plugins;
-  if (plugins && typeof plugins === "object" && !Array.isArray(plugins)) {
-    const entries = plugins.entries;
-    if (entries && typeof entries === "object" && !Array.isArray(entries) && Object.prototype.hasOwnProperty.call(entries, PLUGIN_ID)) {
-      delete entries[PLUGIN_ID];
-      result.removedPluginEntry = true;
-      result.changed = true;
-    }
-    const slots = plugins.slots;
-    if (slots && typeof slots === "object" && !Array.isArray(slots) && slots.memory === PLUGIN_ID) {
-      slots.memory = "memory-core";
-      result.resetMemorySlot = true;
-      result.changed = true;
-    }
-  }
-  if (result.changed) writeJsonObject(path, config);
-  return result;
 }
 function readOpenClawPluginConfig(path = OPENCLAW_CONFIG_FILE) {
   const config = readJsonObject(path);
@@ -1586,33 +1523,6 @@ function registerCliCommands(api, config, store) {
           return;
         }
         errOut(`delete failed: ${String(err)}`);
-      }
-    });
-    root.command("uninstall").description("Remove memory-elasticsearch config and tool allowlist entries").option("--json", "Machine-readable output").action((opts) => {
-      try {
-        const cleanup = cleanupOpenClawConfig();
-        const payload = {
-          ok: true,
-          plugin: PLUGIN_ID,
-          configFile: OPENCLAW_CONFIG_FILE,
-          cleanup,
-          nextCommand: "openclaw plugins uninstall memory-elasticsearch --force"
-        };
-        if (jsonOut(opts, payload)) return;
-        out("memory-elasticsearch config cleanup complete");
-        if (cleanup.removedTools.length) out(`  Removed tools.alsoAllow entries: ${cleanup.removedTools.join(", ")}`);
-        if (cleanup.keptTools.length) out(`  Kept tools.alsoAllow entries: ${cleanup.keptTools.join(", ")}`);
-        if (cleanup.removedAlsoAllow) out("  Removed empty tools.alsoAllow");
-        if (cleanup.removedPluginEntry) out("  Removed plugin config entry");
-        if (cleanup.resetMemorySlot) out("  Reset memory slot to memory-core");
-        out("  Remove installed plugin package: openclaw plugins uninstall memory-elasticsearch --force");
-        out("  Restart the gateway: openclaw gateway restart");
-      } catch (err) {
-        if (opts.json) {
-          out(JSON.stringify({ ok: false, error: String(err) }, null, 2));
-          return;
-        }
-        errOut(`uninstall failed: ${String(err)}`);
       }
     });
     root.command("status").description("Show current memory-elasticsearch runtime config").option("--json", "Machine-readable output").action((opts) => {
