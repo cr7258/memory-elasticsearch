@@ -82,6 +82,7 @@ export interface SearchOptions {
   top_k?: number;
   threshold?: number;
   filters?: Record<string, unknown>;
+  reranker?: boolean;
 }
 
 export interface TriageOptions {

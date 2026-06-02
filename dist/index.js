@@ -203,11 +203,6 @@ import { randomUUID } from "crypto";
 function lemmatizeForSearch(text) {
   return String(text ?? "").toLowerCase().replace(/[`"'“”‘’]/g, " ").replace(/[^\p{L}\p{N}_./:-]+/gu, " ").replace(/\s+/g, " ").trim();
 }
-function literalMemoryTextMatch(query, text) {
-  const normalizedQuery = lemmatizeForSearch(query);
-  if (!normalizedQuery) return false;
-  return lemmatizeForSearch(text).includes(normalizedQuery);
-}
 function buildFilterClauses({ userId, filters } = {}) {
   const clauses = [];
   if (userId) clauses.push({ term: { user_id: userId } });
@@ -341,6 +336,54 @@ function hitsToRankedItems(hits = []) {
     score: hit._score,
     payload: hit._source
   })).filter((item) => item.id);
+}
+
+// src/extraction/memory-deletion.ts
+function serializeDeletionCandidates(candidates) {
+  if (!candidates.length) return "[]";
+  return JSON.stringify(
+    candidates.map((candidate) => ({
+      id: String(candidate.id),
+      text: String(candidate.memory ?? "")
+    })),
+    null,
+    2
+  );
+}
+function deletionJudgeSystemPrompt() {
+  return [
+    "You are a Memory Delete Judge.",
+    "The user provided a deletion query and a list of candidate memories found by search.",
+    "Select only candidate memory IDs that the deletion query clearly asks to delete.",
+    "Do not delete a memory merely because it is semantically related.",
+    "Do not invent IDs. Return IDs only from Candidate Memories.",
+    "Return JSON only."
+  ].join(" ");
+}
+function buildDeletionJudgePrompt(query, candidates) {
+  return [
+    `Deletion Query:
+${query}`,
+    "",
+    `Candidate Memories:
+${serializeDeletionCandidates(candidates)}`,
+    "",
+    "Return shape:",
+    `{"delete_memory_ids":["candidate-memory-id"]}`,
+    "",
+    'If no candidate should be deleted, return {"delete_memory_ids":[]}.'
+  ].join("\n");
+}
+async function selectMemoryIdsForDeletion(model, query, candidates) {
+  if (!candidates.length) return [];
+  if (!model?.config?.llm?.apiKey) throw new Error("OpenAI-compatible API key is required for memory deletion judgment");
+  const result = await model.completeJson({
+    system: deletionJudgeSystemPrompt(),
+    user: buildDeletionJudgePrompt(query, candidates)
+  });
+  const candidateIds = new Set(candidates.map((candidate) => String(candidate.id)));
+  const ids = Array.isArray(result.delete_memory_ids) ? result.delete_memory_ids : [];
+  return [...new Set(ids.map(String).filter((id) => candidateIds.has(id)))];
 }
 
 // src/extraction/memory-extraction.ts
@@ -750,7 +793,7 @@ var ElasticsearchMemoryStore = class {
       _score: item.score,
       _source: { ...item.payload ?? byId.get(item.id) ?? {}, components: item.components }
     }));
-    if (!this.config.reranker.enabled || candidates.length <= 1) return candidates.slice(0, topK);
+    if (!this.config.reranker.enabled || options.reranker === false || candidates.length <= 1) return candidates.slice(0, topK);
     const reranker = new JinaReranker(this.config.reranker);
     const reranked = await reranker.rerank({
       query,
@@ -815,7 +858,9 @@ var ElasticsearchMemoryStore = class {
     return { deleted: 1 };
   }
   async deleteByQuery(query, options = {}) {
-    const matches = (await this.search(query, { ...options, top_k: options.top_k ?? 50 })).filter((match) => literalMemoryTextMatch(query, match.memory));
+    const candidates = await this.search(query, { ...options, top_k: options.top_k ?? 50, reranker: false });
+    const ids = await selectMemoryIdsForDeletion(this.model, query, candidates);
+    const matches = candidates.filter((candidate) => ids.includes(candidate.id));
     for (const match of matches) await this.delete(match.id);
     return { deleted: matches.length, ids: matches.map((match) => match.id) };
   }

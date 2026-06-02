@@ -7,9 +7,9 @@ import {
   hitsToRankedItems,
   keywordHitsToBm25Scores,
   lemmatizeForSearch,
-  literalMemoryTextMatch,
   scoreHybridResults,
 } from "../retrieval/search.js";
+import { selectMemoryIdsForDeletion } from "../extraction/memory-deletion.js";
 import { dedupeMemories, extractMemories } from "../extraction/memory-extraction.js";
 import { JinaReranker } from "../retrieval/reranker.js";
 import { OpenAICompatibleClient } from "../clients/openai-compatible.js";
@@ -282,7 +282,7 @@ export class ElasticsearchMemoryStore {
       _source: { ...(item.payload ?? byId.get(item.id) ?? {}), components: item.components },
     }));
 
-    if (!this.config.reranker.enabled || candidates.length <= 1) return candidates.slice(0, topK);
+    if (!this.config.reranker.enabled || options.reranker === false || candidates.length <= 1) return candidates.slice(0, topK);
 
     const reranker = new JinaReranker(this.config.reranker);
     const reranked = await reranker.rerank({
@@ -354,8 +354,9 @@ export class ElasticsearchMemoryStore {
   }
 
   async deleteByQuery(query: string, options: SearchOptions = {}): Promise<{ deleted: number; ids: string[] }> {
-    const matches = (await this.search(query, { ...options, top_k: options.top_k ?? 50 }))
-      .filter((match) => literalMemoryTextMatch(query, match.memory));
+    const candidates = await this.search(query, { ...options, top_k: options.top_k ?? 50, reranker: false });
+    const ids = await selectMemoryIdsForDeletion(this.model, query, candidates);
+    const matches = candidates.filter((candidate) => ids.includes(candidate.id));
     for (const match of matches) await this.delete(match.id);
     return { deleted: matches.length, ids: matches.map((match) => match.id) };
   }

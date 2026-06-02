@@ -290,7 +290,7 @@ Search memories:
 openclaw memory-es search "what languages does the user know"
 ```
 
-Delete memories:
+Delete memories by query:
 
 ```bash
 openclaw memory-es delete --query "User prefers Elasticsearch"
