@@ -397,7 +397,9 @@ export function registerCliCommands(api: any, config: MemoryConfig, store?: Memo
           });
           const payload = { ok: true, count: result.results.length, results: result.results };
           if (jsonOut(opts, payload)) return;
-          out(result.results.length ? result.results.map((item) => `[${item.event}] ${item.memory} (id=${item.id})`).join("\n") : "No memories stored.");
+          out(result.results.length
+            ? result.results.map((item) => `[${item.event}] ${item.memory} (id=${item.id})`).join("\n")
+            : "Duplicate memory found; no new memory stored.");
         } catch (err) {
           if (opts.json) {
             out(JSON.stringify({ ok: false, error: String(err) }, null, 2));
