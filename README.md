@@ -37,37 +37,24 @@ Use your own secured Elasticsearch URL in production. The plugin supports no aut
 
 ## Install
 
+From npm:
+
+```bash
+openclaw plugins install npm:@cr7258/memory-elasticsearch
+```
+
 From GitHub:
 
 ```bash
 openclaw plugins install git:github.com/cr7258/memory-elasticsearch@main
 ```
 
-From ClawHub:
-
-```bash
-openclaw plugins install clawhub:@cr7258/memory-elasticsearch
-```
-
-From a local checkout:
-
-```bash
-cd /path/to/memory-elasticsearch
-npm install
-npm run build
-openclaw plugins install --link .
-```
-
-For local plugin installs, keep dependencies installed in the plugin directory. For GitHub and ClawHub installs, OpenClaw manages the plugin install root.
-
-OpenClaw plugin install docs: https://docs.openclaw.ai/cli/plugins
-
 ## Uninstall
 
 Remove the installed plugin package:
 
 ```bash
-openclaw plugins uninstall memory-elasticsearch --force
+openclaw plugins uninstall memory-elasticsearch
 ```
 
 Then restart the gateway:
