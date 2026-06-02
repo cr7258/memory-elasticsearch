@@ -1,0 +1,175 @@
+{
+  "id": "memory-elasticsearch",
+  "name": "Memory (Elasticsearch)",
+  "description": "OpenClaw long-term memory backend backed by Elasticsearch. Supports memory tools, triage, auto recall/capture, and app-level BM25 + vector hybrid retrieval.",
+  "version": "0.0.1",
+  "kind": "memory",
+  "skills": [
+    "skills"
+  ],
+  "commandAliases": [
+    {
+      "name": "memory-elasticsearch",
+      "cliCommand": "memory-elasticsearch"
+    },
+    {
+      "name": "memory-es",
+      "cliCommand": "memory-elasticsearch"
+    }
+  ],
+  "activation": {
+    "onStartup": true
+  },
+  "contracts": {
+    "tools": [
+      "memory_search",
+      "memory_add",
+      "memory_get",
+      "memory_list",
+      "memory_update",
+      "memory_delete",
+      "memory_triage"
+    ]
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "userId": {
+        "type": "string"
+      },
+      "autoRecall": {
+        "type": "boolean"
+      },
+      "autoCapture": {
+        "type": "boolean"
+      },
+      "topK": {
+        "type": "number"
+      },
+      "searchThreshold": {
+        "type": "number"
+      },
+      "elasticsearch": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "url": {
+            "type": "string"
+          },
+          "index": {
+            "type": "string"
+          },
+          "apiKey": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          }
+        }
+      },
+      "openaiCompatible": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "baseUrl": {
+            "type": "string"
+          },
+          "apiKey": {
+            "type": "string"
+          },
+          "llmModel": {
+            "type": "string"
+          },
+          "embeddingModel": {
+            "type": "string"
+          },
+          "embeddingDims": {
+            "type": "number"
+          },
+          "llm": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "baseUrl": {
+                "type": "string"
+              },
+              "apiKey": {
+                "type": "string"
+              },
+              "model": {
+                "type": "string"
+              }
+            }
+          },
+          "embedding": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "baseUrl": {
+                "type": "string"
+              },
+              "apiKey": {
+                "type": "string"
+              },
+              "model": {
+                "type": "string"
+              },
+              "dims": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      },
+      "search": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "hybrid"
+            ]
+          },
+          "numCandidates": {
+            "type": "number"
+          },
+          "semanticWeight": {
+            "type": "number"
+          },
+          "keywordWeight": {
+            "type": "number"
+          }
+        }
+      },
+      "reranker": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "jina"
+            ]
+          },
+          "baseUrl": {
+            "type": "string"
+          },
+          "apiKey": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
