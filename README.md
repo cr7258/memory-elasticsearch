@@ -64,16 +64,16 @@ OpenClaw plugin install docs: https://docs.openclaw.ai/cli/plugins
 
 ## Uninstall
 
-Remove the plugin package and its tool allowlist entries:
+First remove the plugin config and its tool allowlist entries:
 
 ```bash
 openclaw memory-es uninstall
 ```
 
-Use `--force` to skip the OpenClaw uninstall confirmation prompt:
+Then remove the installed plugin package:
 
 ```bash
-openclaw memory-es uninstall --force
+openclaw plugins uninstall memory-elasticsearch --force
 ```
 
 Then restart the gateway:

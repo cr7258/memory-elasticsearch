@@ -1,5 +1,4 @@
 import { userInfo } from "node:os";
-import { spawnSync } from "node:child_process";
 import type { MemoryConfig, MemoryRecord, MemoryStore, SearchOptions } from "../types.js";
 import { OPENCLAW_CONFIG_FILE, OPENCLAW_ENV_FILE, PLUGIN_ID, cleanupOpenClawConfig, patchOpenClawConfig, readOpenClawPluginConfig, upsertEnvVar } from "./config-file.js";
 
@@ -73,8 +72,6 @@ interface DeleteCliOptions {
 }
 
 interface UninstallCliOptions {
-  force?: boolean;
-  keepFiles?: boolean;
   json?: boolean;
 }
 
@@ -132,16 +129,6 @@ function jsonOut(opts: { json?: boolean }, payload: Record<string, unknown>): bo
   if (!opts.json) return false;
   out(JSON.stringify(payload, null, 2));
   return true;
-}
-
-function runOpenClawPluginUninstall(opts: UninstallCliOptions): void {
-  if (opts.json && !opts.force) throw new Error("--json requires --force for uninstall");
-  const args = ["plugins", "uninstall", PLUGIN_ID];
-  if (opts.force) args.push("--force");
-  if (opts.keepFiles) args.push("--keep-files");
-  const result = spawnSync("openclaw", args, { stdio: opts.json ? "pipe" : "inherit" });
-  if (result.error) throw result.error;
-  if (result.status !== 0) throw new Error(`openclaw ${args.join(" ")} failed with exit code ${result.status ?? "unknown"}`);
 }
 
 function searchOptions(config: MemoryConfig, opts: SearchCliOptions | ListCliOptions): SearchOptions {
@@ -548,22 +535,26 @@ export function registerCliCommands(api: any, config: MemoryConfig, store?: Memo
 
     root
       .command("uninstall")
-      .description("Uninstall the plugin and remove only memory-elasticsearch tool allowlist entries")
-      .option("--force", "Skip OpenClaw uninstall confirmation prompt")
-      .option("--keep-files", "Keep installed plugin files on disk")
+      .description("Remove memory-elasticsearch config and tool allowlist entries")
       .option("--json", "Machine-readable output")
       .action((opts: UninstallCliOptions) => {
         try {
-          runOpenClawPluginUninstall(opts);
           const cleanup = cleanupOpenClawConfig();
-          const payload = { ok: true, plugin: PLUGIN_ID, configFile: OPENCLAW_CONFIG_FILE, cleanup };
+          const payload = {
+            ok: true,
+            plugin: PLUGIN_ID,
+            configFile: OPENCLAW_CONFIG_FILE,
+            cleanup,
+            nextCommand: "openclaw plugins uninstall memory-elasticsearch --force",
+          };
           if (jsonOut(opts, payload)) return;
-          out("memory-elasticsearch uninstall cleanup complete");
+          out("memory-elasticsearch config cleanup complete");
           if (cleanup.removedTools.length) out(`  Removed tools.alsoAllow entries: ${cleanup.removedTools.join(", ")}`);
           if (cleanup.keptTools.length) out(`  Kept tools.alsoAllow entries: ${cleanup.keptTools.join(", ")}`);
           if (cleanup.removedAlsoAllow) out("  Removed empty tools.alsoAllow");
           if (cleanup.removedPluginEntry) out("  Removed plugin config entry");
           if (cleanup.resetMemorySlot) out("  Reset memory slot to memory-core");
+          out("  Remove installed plugin package: openclaw plugins uninstall memory-elasticsearch --force");
           out("  Restart the gateway: openclaw gateway restart");
         } catch (err) {
           if (opts.json) {
