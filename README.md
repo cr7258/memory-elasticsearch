@@ -8,22 +8,15 @@ It replaces the active OpenClaw memory slot with an Elasticsearch store that sup
 - automatic memory capture after agent turns
 - manual memory search, add, list, update, delete, and triage tools
 - OpenAI-compatible LLM and embedding providers
-- app-level hybrid retrieval using vector search plus BM25
-- optional Jina reranking with `jina-reranker-v3`
+- hybrid retrieval using vector search plus BM25
+- optional reranking with Jina, defaulting to `jina-reranker-v3`
 
 All stored memories are persistent memories. The plugin does not split storage into session-scoped and long-term memories.
 
 ## Prerequisites
 
 - OpenClaw with plugin support
-- Elasticsearch with `dense_vector` and kNN support
-- an OpenAI-compatible chat model
-- an OpenAI-compatible embedding model
-- optional Jina API key when reranking is enabled
-
-The embedding model and Elasticsearch index dimensions must match. If you change the embedding model or `embeddingDims`, use a new index or recreate the old one.
-
-For local development, a single-node Elasticsearch instance is enough:
+- Elasticsearch with `dense_vector` and kNN support. For local development, a single-node Elasticsearch instance is enough:
 
 ```bash
 docker run --name openclaw-memory-es \
@@ -33,28 +26,231 @@ docker run --name openclaw-memory-es \
   docker.elastic.co/elasticsearch/elasticsearch:8.15.5
 ```
 
-Use your own secured Elasticsearch URL in production. The plugin supports no auth, API key auth, and basic auth.
+- an OpenAI-compatible chat model
+- an OpenAI-compatible embedding model
+- optional Jina API key when reranking is enabled
 
-## Install
+## Quickstart
 
-From npm:
+Set your OpenAI-compatible API key:
+
+```bash
+export OPENAI_API_KEY=<your-openai-compatible-api-key>
+```
+
+Install from npm:
 
 ```bash
 openclaw plugins install npm:@cr7258/memory-elasticsearch
 ```
 
-From GitHub:
+Or from GitHub:
 
 ```bash
 openclaw plugins install git:github.com/cr7258/memory-elasticsearch@main
 ```
+
+Enable the plugin:
+
+```bash
+openclaw plugins enable memory-es
+```
+
+Initialize the plugin and configure the LLM and embedding models. The embedding model output dimensions must match the Elasticsearch index dimensions.
+
+```bash
+openclaw memory-es init \
+  --base-url https://openrouter.ai/api/v1 \
+  --api-key "$OPENAI_API_KEY" \
+  --llm-model <llm-model-name> \
+  --embedding-model <embedding-model-name> \
+  --embedding-dims 4096 \
+  --elasticsearch-url <elasticsearch-url> \
+  --elasticsearch-username <elasticsearch-username> \
+  --elasticsearch-password <elasticsearch-password> \
+  --index openclaw-memory
+
+# Example
+openclaw memory-es init \
+  --base-url https://openrouter.ai/api/v1 \
+  --api-key "$OPENAI_API_KEY" \
+  --llm-model qwen/qwen3.6-plus \
+  --embedding-model qwen/qwen3-embedding-8b \
+  --embedding-dims 4096 \
+  --elasticsearch-url http://localhost:9200 \
+  --index openclaw-memory
+```
+
+Restart the gateway so the plugin is loaded with the new config:
+
+```bash
+openclaw gateway restart
+```
+
+Create a first session and say something durable:
+
+```bash
+openclaw tui --session t1
+```
+
+```text
+I usually drink milk latte in the morning, and I prefer waffles for breakfast.
+```
+
+Check that memory was captured:
+
+```bash
+openclaw memory-es list --json
+```
+
+Start another session and ask for the stored preference:
+
+```bash
+openclaw tui --session t2
+```
+
+```text
+What do I usually drink in the morning?
+```
+
+## Reranker
+
+Reranking is disabled by default. It can improve result ordering by rescoring the hybrid search candidates with a dedicated reranker model.
+
+First, add two memories that are easy for hybrid retrieval to confuse:
+
+```bash
+openclaw memory-es add "Last year I put cashew butter on toast every morning."
+openclaw memory-es add "These days my breakfast toast gets apricot jam."
+```
+
+Search before enabling reranking:
+
+```bash
+openclaw memory-es search "Which spread do I currently put on toast?" --json --top-k 2
+
+# Response
+{
+  "ok": true,
+  "query": "Which spread do I currently put on toast?",
+  "count": 2,
+  "memories": [
+    {
+      "id": "a05452e5-55af-429f-a972-7a907662e1d8",
+      "memory": "Last year I put cashew butter on toast every morning.",
+      "score": 0.8648928434596657,
+      "user_id": "root",
+      "metadata": {
+        "captured_by": "cli_add",
+        "attributed_to": "user",
+        "source": "OPENCLAW_CLI"
+      },
+      "components": {
+        "semantic": 0.8151684,
+        "bm25": 0.9394795086491641
+      },
+      "created_at": "2026-06-02T04:59:19.500Z",
+      "updated_at": "2026-06-02T04:59:19.500Z"
+    },
+    {
+      "id": "95aa8b17-1ae6-44da-a31f-eb49abfb8ff3",
+      "memory": "These days my breakfast toast gets apricot jam.",
+      "score": 0.5432100021401755,
+      "user_id": "root",
+      "metadata": {
+        "captured_by": "cli_add",
+        "attributed_to": "user",
+        "linked_memory_ids": [
+          "a05452e5-55af-429f-a972-7a907662e1d8"
+        ],
+        "source": "OPENCLAW_CLI"
+      },
+      "components": {
+        "semantic": 0.86079884,
+        "bm25": 0.06682674535043857
+      },
+      "created_at": "2026-06-02T05:00:14.109Z",
+      "updated_at": "2026-06-02T05:00:14.109Z"
+    }
+  ]
+}
+```
+
+Enable Jina reranking:
+
+```bash
+export JINA_API_KEY=<your-jina-api-key>
+
+openclaw memory-es init \
+  --reuse-values \
+  --reranker \
+  --reranker-api-key "$JINA_API_KEY"
+```
+
+Search again:
+
+```bash
+openclaw memory-es search "Which spread do I currently put on toast?" --json --top-k 2
+
+# Response
+{
+  "ok": true,
+  "query": "Which spread do I currently put on toast?",
+  "count": 2,
+  "memories": [
+    {
+      "id": "95aa8b17-1ae6-44da-a31f-eb49abfb8ff3",
+      "memory": "These days my breakfast toast gets apricot jam.",
+      "score": 0.08000827,
+      "user_id": "root",
+      "metadata": {
+        "captured_by": "cli_add",
+        "attributed_to": "user",
+        "linked_memory_ids": [
+          "a05452e5-55af-429f-a972-7a907662e1d8"
+        ],
+        "source": "OPENCLAW_CLI"
+      },
+      "components": {
+        "semantic": 0.86129856,
+        "bm25": 0.06682674535043857,
+        "original": 0.5435098341401755,
+        "rerank": 0.08000827
+      },
+      "created_at": "2026-06-02T05:00:14.109Z",
+      "updated_at": "2026-06-02T05:00:14.109Z"
+    },
+    {
+      "id": "a05452e5-55af-429f-a972-7a907662e1d8",
+      "memory": "Last year I put cashew butter on toast every morning.",
+      "score": 0.07208811,
+      "user_id": "root",
+      "metadata": {
+        "captured_by": "cli_add",
+        "attributed_to": "user",
+        "source": "OPENCLAW_CLI"
+      },
+      "components": {
+        "semantic": 0.81590843,
+        "bm25": 0.9394795086491641,
+        "original": 0.8653368614596657,
+        "rerank": 0.07208811
+      },
+      "created_at": "2026-06-02T04:59:19.500Z",
+      "updated_at": "2026-06-02T04:59:19.500Z"
+    }
+  ]
+}
+```
+
+With reranking enabled, the result includes `components.original` for the original hybrid score and `components.rerank` for the Jina score. The final order follows the reranker.
 
 ## Uninstall
 
 Remove the installed plugin package:
 
 ```bash
-openclaw plugins uninstall memory-elasticsearch
+openclaw plugins uninstall memory-es
 ```
 
 Then restart the gateway:
@@ -69,132 +265,12 @@ Uninstalling the plugin does not delete Elasticsearch data. Delete the memory in
 curl -X DELETE 'http://localhost:9200/openclaw-memory'
 ```
 
-## Initialize
+## Memory CLI
 
-Run `init` after the plugin is installed. This command writes plugin config to `~/.openclaw/openclaw.json`, stores provided API keys in `~/.openclaw/.env`, and selects this plugin as the active memory backend.
-
-Shared OpenAI-compatible endpoint:
-
-```bash
-export OPENAI_API_KEY=<your-api-key>
-openclaw memory-es init \
-  --base-url https://openrouter.ai/api/v1 \
-  --api-key $OPENAI_API_KEY \
-  --llm-model qwen/qwen3.6-plus \
-  --embedding-model qwen/qwen3-embedding-8b \
-  --embedding-dims 4096 \
-  --elasticsearch-url http://localhost:9200 \
-  --index openclaw-memory
-```
-
-Separate LLM and embedding endpoints:
-
-```bash
-openclaw memory-es init \
-  --llm-base-url https://openrouter.ai/api/v1 \
-  --llm-api-key <llm-api-key> \
-  --llm-model qwen/qwen3.6-plus \
-  --embedding-base-url https://api.openai.com/v1 \
-  --embedding-api-key <embedding-api-key> \
-  --embedding-model text-embedding-3-small \
-  --embedding-dims 1536 \
-  --elasticsearch-url http://localhost:9200 \
-  --index openclaw-memory
-```
-
-Enable Jina reranking:
-
-```bash
-openclaw memory-es init \
-  --reuse-values \
-  --reranker \
-  --reranker-api-key <jina-api-key> \
-  --reranker-model jina-reranker-v3
-```
-
-Disable Jina reranking while keeping the rest of the current config:
-
-```bash
-openclaw memory-es init --reuse-values --reranker false
-```
-
-After initialization, restart the gateway so the plugin is loaded with the new config:
-
-```bash
-openclaw gateway restart
-```
-
-## Configuration Written by Init
-
-`init` stores API key references in OpenClaw config and writes the secret values to `~/.openclaw/.env`.
-
-Default environment variable names:
-
-- `OPENAI_API_KEY`: shared OpenAI-compatible key
-- `OPENAI_LLM_API_KEY`: LLM key when `--llm-api-key` is used
-- `OPENAI_EMBEDDING_API_KEY`: embedding key when `--embedding-api-key` is used
-- `JINA_API_KEY`: Jina reranker key when `--reranker-api-key` is used
-
-Minimal generated config shape:
-
-```json
-{
-  "plugins": {
-    "entries": {
-      "memory-elasticsearch": {
-        "enabled": true,
-        "hooks": {
-          "allowConversationAccess": true
-        },
-        "config": {
-          "userId": "alice",
-          "autoRecall": true,
-          "autoCapture": true,
-          "topK": 5,
-          "searchThreshold": 0.05,
-          "elasticsearch": {
-            "url": "http://localhost:9200",
-            "index": "openclaw-memory"
-          },
-          "openaiCompatible": {
-            "llm": {
-              "baseUrl": "https://api.openai.com/v1",
-              "apiKey": "${OPENAI_API_KEY}",
-              "model": "gpt-4o-mini"
-            },
-            "embedding": {
-              "baseUrl": "https://api.openai.com/v1",
-              "apiKey": "${OPENAI_API_KEY}",
-              "model": "text-embedding-3-small",
-              "dims": 1536
-            }
-          },
-          "search": {
-            "mode": "hybrid",
-            "semanticWeight": 0.6,
-            "keywordWeight": 0.4
-          },
-          "reranker": {
-            "enabled": false,
-            "provider": "jina",
-            "baseUrl": "https://api.jina.ai",
-            "model": "jina-reranker-v3"
-          }
-        }
-      }
-    },
-    "slots": {
-      "memory": "memory-elasticsearch"
-    }
-  }
-}
-```
-
-## Use Memory from the CLI
+Check plugin status from the memory CLI:
 
 ```bash
 openclaw memory-es status
-openclaw memory-es status --json
 ```
 
 Search memories:
@@ -216,18 +292,6 @@ Add an explicit memory:
 openclaw memory-es add "User prefers Elasticsearch for OpenClaw memory"
 ```
 
-Preview durable memory candidates without storing them:
-
-```bash
-openclaw memory-es triage "Remember this: user prefers qwen/qwen3-embedding-8b for embeddings"
-```
-
-Delete by exact memory ID:
-
-```bash
-openclaw memory-es delete --memory-id <memory-id>
-```
-
 Delete by query. The plugin searches first and deletes only literal text matches:
 
 ```bash
@@ -238,12 +302,4 @@ Delete all memories for a user:
 
 ```bash
 openclaw memory-es delete --all --confirm --user-id alice
-```
-
-Any command can return JSON when it supports `--json`:
-
-```bash
-openclaw memory-es search "preferences" --json
-openclaw memory-es list --json
-openclaw memory-es status --json
 ```
