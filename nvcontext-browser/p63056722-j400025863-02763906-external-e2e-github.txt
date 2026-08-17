@@ -1,0 +1,3 @@
+# NVContext browser provider fixture
+
+The verified browser provider marker is nvcontext-browser-github-p63056722-j400025863-02763906-external-e2e-github.
